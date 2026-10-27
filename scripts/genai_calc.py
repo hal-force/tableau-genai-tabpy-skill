@@ -38,6 +38,7 @@ import textwrap
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 PLACEHOLDER = "PASTE_YOUR_API_KEY_HERE"
+NAME_RX = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 # ----------------------------------------------------------------- registry
 # wire: openai_chat | anthropic_messages | bedrock_converse | bedrock_boto3 |
@@ -123,6 +124,15 @@ import requests
 
 def scalar(x):
     return x[0] if isinstance(x, (list, tuple)) else x
+
+SCRUB = []   # every secret / token resolved below; removed from anything returned to Tableau
+
+def scrub(s):
+    s = str(s)
+    for v in SCRUB:
+        if v:
+            s = s.replace(v, '<redacted>')
+    return s
 
 PROVIDER_LABEL = {{LABEL_REPR}}
 API_URL = {{API_URL_REPR}}
@@ -234,7 +244,7 @@ if token_count < 1:
     return [{{EMPTY_MSG_REPR}}]
 
 if token_count > MAX_GROUNDING_TOKENS:
-    return ['Grounding context is too large (' + str(int(token_count)) + ' tokens, max ' + str(MAX_GROUNDING_TOKENS) + '). Apply additional filters in the dashboard to narrow the dataset, or split the analysis into multiple focused queries by {{SPLIT_HINT}}.']
+    return ['Grounding context is too large (' + str(int(token_count)) + ' tokens, max ' + str(MAX_GROUNDING_TOKENS) + '). Apply additional filters in the dashboard to narrow the dataset, or split the analysis into multiple focused queries by ' + {{SPLIT_HINT_REPR}} + '.']
 
 if not MODEL:
     return ['Select a model in the Select LLM parameter.']
@@ -282,23 +292,25 @@ prompt = '\\n\\n'.join(sections) + self_assessment + question_reminder
 '''
 
 HTTP = '''
+def _retry_delay(attempt, response, base_delay):
+    delay = base_delay * (2 ** (attempt - 1))
+    try:
+        delay = max(delay, float(response.headers.get('Retry-After')))
+    except Exception:
+        pass
+    return min(delay, 30)
+
 def post_json(url, headers, body, max_retries=3, base_delay=1.0):
+    # Retries 429/5xx and connection failures. A ReadTimeout is NOT retried:
+    # the provider already has the request, and retrying would multiply the
+    # wait far past Tableau's analytics-extension timeout.
     attempt = 0
     while True:
         response = None
         try:
             response = requests.post(url, json=body, headers=headers, timeout=REQUEST_TIMEOUT, verify=TLS_VERIFY)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.HTTPError:
-            code = response.status_code if response is not None else 0
-            if code in (429, 500, 502, 503, 504) and attempt < max_retries:
-                attempt += 1
-                time.sleep(base_delay * (2 ** (attempt - 1)))
-                continue
-            return {'_error': 'HTTP ' + str(code) + ' from ' + PROVIDER_LABEL + ': ' + (response.text[:1500] if response is not None else '')}
-        except ValueError:
-            return {'_error': 'Non-JSON response from ' + PROVIDER_LABEL + ': ' + (response.text[:500] if response is not None else '')}
+        except requests.exceptions.ReadTimeout:
+            return {'_error': 'No answer from ' + PROVIDER_LABEL + ' within ' + str(REQUEST_TIMEOUT) + ' s. Select fewer marks, ask for a shorter answer, or rebuild with a larger --timeout (and raise the Tableau / TabPy timeouts to match).'}
         except requests.exceptions.RequestException as e:
             if attempt < max_retries:
                 attempt += 1
@@ -307,6 +319,20 @@ def post_json(url, headers, body, max_retries=3, base_delay=1.0):
             return {'_error': 'Request to ' + PROVIDER_LABEL + ' failed (' + type(e).__name__ + '): ' + str(e)[:500]}
         except Exception as e:
             return {'_error': 'Request to ' + PROVIDER_LABEL + ' failed (' + type(e).__name__ + '): ' + str(e)[:500]}
+        code = response.status_code
+        if code >= 400:
+            if code in (429, 500, 502, 503, 504) and attempt < max_retries:
+                attempt += 1
+                time.sleep(_retry_delay(attempt, response, base_delay))
+                continue
+            return {'_error': 'HTTP ' + str(code) + ' from ' + PROVIDER_LABEL + ': ' + response.text[:1500]}
+        try:
+            out = response.json()
+        except ValueError:
+            return {'_error': 'Non-JSON response from ' + PROVIDER_LABEL + ': ' + response.text[:500]}
+        if not isinstance(out, dict):
+            return {'_error': 'Unexpected response shape from ' + PROVIDER_LABEL + ' (expected a JSON object): ' + response.text[:300]}
+        return out
 
 def join_text(blocks):
     if isinstance(blocks, str):
@@ -436,7 +462,8 @@ if not API_KEY:
 
 def call_llm(prompt):
     model = MODEL[len('google/'):] if MODEL.startswith('google/') else MODEL
-    url = API_URL.rstrip('/') + '/publishers/google/models/' + model + ':generateContent'
+    from urllib.parse import quote
+    url = API_URL.rstrip('/') + '/publishers/google/models/' + quote(model, safe='') + ':generateContent'
     headers = {'Content-Type': 'application/json', 'x-goog-api-key': API_KEY}
     body = {'contents': [{'role': 'user', 'parts': [{'text': prompt}]}]}
     if MAX_OUTPUT_TOKENS:
@@ -469,6 +496,7 @@ def call_llm(prompt):
         access = resp.get('access_token') or resp.get('token') or ''
     if not access:
         return 'Ask Sage token exchange returned no access_token (status ' + str(tok.get('status')) + ').'
+    SCRUB.append(access)
     headers = {'Content-Type': 'application/json', 'x-access-tokens': access}
     body = {'message': prompt, 'model': MODEL, 'dataset': 'none', 'temperature': ASKSAGE_TEMPERATURE, 'live': 0}
     out = post_json(API_URL, headers, body)
@@ -513,6 +541,7 @@ def vertex_access_token():
 API_KEY, token_error = vertex_access_token()
 if not API_KEY:
     return [token_error]
+SCRUB.append(API_KEY)
 
 def call_llm(prompt):
     headers = {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY}
@@ -520,9 +549,19 @@ def call_llm(prompt):
     return openai_chat(API_URL, headers, model, prompt)
 '''
 
+SECRETS_WRAP = '''
+_get_secret_store = get_secret
+
+def get_secret(name):
+    v = _get_secret_store(name)
+    if v and len(v) >= 6:
+        SCRUB.append(v)
+    return v
+'''
+
 FOOTER = '''
 result = call_llm(prompt)
-return [result]
+return [scrub(result)]
 '''
 
 
@@ -565,6 +604,9 @@ def build_body(provider: str, mode: str, a, demo_values: dict | None = None) -> 
     url = resolve_url(provider, a)
     names = secret_names(provider, a.secret_name)
     service = a.keystore_service
+    for n in names + [service] + list(p.get("optional_secrets", [])):
+        if not NAME_RX.match(n or ""):
+            raise SystemExit("invalid secret / keystore service name %r (allowed: letters, digits, . _ -)" % n)
 
     extra = []
     if wire in ("bedrock_boto3", "bedrock_converse"):
@@ -588,6 +630,7 @@ def build_body(provider: str, mode: str, a, demo_values: dict | None = None) -> 
         parts.append(SECRETS_DEMO.replace("{{DEMO_SECRETS}}", _dict_literal(vals)))
     else:
         parts.append(SECRETS_KEYSTORE)
+    parts.append(SECRETS_WRAP)
     parts += [GUARDS, PROMPT_NO_TEMPLATE if a.no_prompts_param else PROMPT_WITH_TEMPLATE,
               PROMPT_ASSEMBLY, HTTP]
     if wire in ("openai_chat", "palantir_router"):
@@ -611,14 +654,14 @@ def build_body(provider: str, mode: str, a, demo_values: dict | None = None) -> 
         "{{SERVICE}}": service, "{{SERVICE_REPR}}": repr(service),
         "{{PLACEHOLDER_REPR}}": repr(PLACEHOLDER),
         "{{EMPTY_MSG_REPR}}": repr(a.empty_message),
-        "{{SPLIT_HINT}}": a.split_hint.replace("'", ""),
+        "{{SPLIT_HINT_REPR}}": repr(a.split_hint),
         "{{AUTH_HEADER_REPR}}": repr(p.get("auth_header", "Authorization")),
         "{{AUTH_PREFIX_REPR}}": repr(p.get("auth_prefix", "Bearer ")),
         "{{SECRET0_REPR}}": repr(names[0]) if names else "''",
         "{{SECRET1_REPR}}": repr(names[1]) if len(names) > 1 else "''",
     }
-    for k, v in subs.items():
-        body = body.replace(k, v)
+    # one pass: a value that happens to contain "{{SLOT}}" is never expanded again
+    body = re.sub(r"\{\{[A-Z0-9_]+\}\}", lambda m: subs.get(m.group(0), m.group(0)), body)
     leftover = re.findall(r"\{\{[A-Z0-9_]+\}\}", body)
     if leftover:
         raise RuntimeError("unfilled template slots: %s" % leftover)
@@ -654,9 +697,14 @@ def arg_fields(a) -> list[str]:
 
 
 def redact(body: str, values: dict) -> str:
+    """Remove secret values from the reviewable .py copy. The body holds them
+    as repr() literals (escaped backslashes / newlines), so redact that form
+    first, then the raw value."""
     for v in values.values():
         if v and v != PLACEHOLDER and len(v) >= 4:
-            body = body.replace(v, "<redacted %d chars>" % len(v))
+            for form in (repr(v), repr(v)[1:-1], v):
+                body = body.replace(form, "'<redacted %d chars>'" % len(v) if form == repr(v)
+                                    else "<redacted %d chars>" % len(v))
     return body
 
 
@@ -725,6 +773,10 @@ def main(argv=None) -> int:
             raise SystemExit("--demo-key-from-keystore: nothing stored for %s. "
                              "Run set_secret.py first." % secret_names(a.provider, a.secret_name))
 
+    url = resolve_url(a.provider, a) if PROVIDERS[a.provider].get("url") != "" else ""
+    if url.startswith("http://") and not re.match(r"http://(localhost|127\.0\.0\.1|\[::1\])[:/]", url):
+        print("WARNING: %s is plain http -- the API key and grounding data would cross the network "
+              "unencrypted." % url, file=sys.stderr)
     body = build_body(a.provider, a.mode, a, demo_values)
     check_compiles(body)
     formula = to_tableau_formula(body, arg_fields(a))
@@ -735,6 +787,7 @@ def main(argv=None) -> int:
     calc_path = os.path.join(out, stem + ".twbcalc")
     py_path = os.path.join(out, stem + ".py")
     fd = os.open(calc_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600 if demo_values else 0o644)
+    os.fchmod(fd, 0o600 if demo_values else 0o644)   # mode= only applies on creation
     with os.fdopen(fd, "w") as fh:
         fh.write(formula)
     with open(py_path, "w") as fh:

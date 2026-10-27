@@ -35,7 +35,9 @@ are unique per layout.
 from __future__ import annotations
 
 import argparse
+import atexit
 import copy
+import html
 import json
 import os
 import random
@@ -51,7 +53,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import genai_calc  # noqa: E402
 import payload as payload_mod  # noqa: E402
-from profile_data import has_plaintext_key  # noqa: E402
+from profile_data import credential_values, has_plaintext_key  # noqa: E402
 
 USER_NS = "http://www.tableausoftware.com/xml/user"
 ET.register_namespace("user", USER_NS)
@@ -63,6 +65,14 @@ TOKEN_FORMULA = ('// Approximate token count for [Grounding]\n'
                  '// Heuristic: ~4 characters per token for English text.\n'
                  '// Returns 0 when Grounding is empty, which trips the guard in the TabPy script.\n'
                  'INT(LEN(IFNULL(%s, "")) / 4)')
+
+
+def _open_private(path, mode: int) -> int:
+    """Open for writing and force `mode` even when the file already exists
+    (os.open's mode only applies on creation)."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+    os.fchmod(fd, mode)
+    return fd
 
 
 def lit(s: str) -> str:
@@ -109,10 +119,12 @@ class Patcher:
                 return c
         return None
 
-    def find_scaffold(self, ds_caption=None):
+    def find_scaffold(self, ds_caption=None, response_caption=None):
         """Return (main datasource, {role: column element})."""
         found = {}
         target = None
+        want = (response_caption or CAP_RESPONSE).lower()
+        scripts = []   # (datasource, column) for every SCRIPT_* calc
         for d in self.datasources():
             if d.get("name") == "Parameters":
                 continue
@@ -120,12 +132,20 @@ class Patcher:
                 continue
             for c in d.findall("column"):
                 calc = c.find("calculation")
-                f = calc.get("formula", "") if calc is not None else ""
-                cap = c.get("caption") or ""
-                if "SCRIPT_" in f and "response" not in found:
-                    found["response"], target = c, d
-            if target is d:
-                break
+                if calc is not None and "SCRIPT_" in calc.get("formula", ""):
+                    scripts.append((d, c))
+        named = [x for x in scripts if (x[1].get("caption") or "").lower() == want]
+        if named:
+            target, found["response"] = named[0]
+        elif response_caption:
+            raise SystemExit("no SCRIPT_ calculation captioned %r (found: %s)" % (
+                response_caption, [x[1].get("caption") or x[1].get("name") for x in scripts] or "none"))
+        elif len(scripts) == 1:
+            target, found["response"] = scripts[0]
+        elif scripts:
+            raise SystemExit("several SCRIPT_ calculations and none captioned %r: %s. Pass "
+                             "--response CAPTION to choose." % (CAP_RESPONSE,
+                             [x[1].get("caption") or x[1].get("name") for x in scripts]))
         if target is None:
             cands = [d for d in self.datasources() if d.get("name") != "Parameters" and
                      (not ds_caption or ds_caption in (d.get("caption"), d.get("name")))]
@@ -160,6 +180,25 @@ class Patcher:
                 c = self.param_by_caption(cap)
                 if c is not None:
                     found[role] = c
+        # renamed parameters: fall back to the Response's own SCRIPT_STR arguments
+        # (4-arg legacy: Prompt, Grounding, Select LLM, Token Count;
+        #  5-arg: Prompts, Grounding, Select LLM, Token Count, Prompt)
+        if "response" in found:
+            f = found["response"].find("calculation").get("formula", "")
+            refs = refs_in(f)
+            roles = {4: ("prompt", "grounding", "model", "tokens"),
+                     5: ("prompts", "grounding", "model", "tokens", "prompt")}.get(len(refs), ())
+            pd = self.params_ds()
+            pcols = {c.get("name"): c for c in (pd.findall("column") if pd is not None else [])}
+            fcols = {c.get("name"): c for c in target.findall("column")}
+            for role, ref in zip(roles, refs):
+                if role in found:
+                    continue
+                m = re.match(r"\[Parameters\]\.(\[.+\])$", ref)
+                c = pcols.get(m.group(1)) if m else (fcols.get(ref) if role == "tokens" else None)
+                if c is not None:
+                    found[role] = c
+                    self.log.append("found %s via the Response's arguments: %s" % (role, ref))
         return target, found
 
     def copies(self, internal_name: str, scope=None):
@@ -292,12 +331,14 @@ class Patcher:
 
     # ------------------------------------------------------------ zones
     def add_param_zone(self, prompt_param_ref, model_param_ref, new_param_ref):
-        added = 0
+        """Returns (layouts given a new Prompts control, dashboards that already had one)."""
+        added = present = 0
         for db in self.root.iter("dashboard"):
             zones = [z for z in db.iter("zone")]
             if not any(z.get("param") == prompt_param_ref for z in zones):
                 continue
             if any(z.get("param") == new_param_ref for z in zones):
+                present += 1
                 continue
             new_id = str(max(int(z.get("id", "0")) for z in zones) + 1)
             for pz in [z for z in zones if z.get("param") == prompt_param_ref and z.get("type-v2") == "paramctrl"]:
@@ -318,8 +359,7 @@ class Patcher:
                 parent.insert(list(parent).index(pz), nz)
                 self.parent[nz] = parent
                 added += 1
-            # dashboard-level Parameters dependency block
-        return added
+        return added, present
 
 
 def resolve_payload_fields(ds, specs, maxc, types):
@@ -337,16 +377,26 @@ def resolve_payload_fields(ds, specs, maxc, types):
             if c.get("datatype"):
                 dtype_of.setdefault(c.get("name"), c.get("datatype"))
     out, tables = [], set()
+    names = set()
     for s in specs:
         label, _, cap = s.partition("=")
+        names |= {label.strip(), (cap or label).strip()}
+    for opt, d in (("--payload-max-chars", maxc), ("--payload-type", types)):
+        unknown = [k for k in d if k not in names]
+        if unknown:
+            raise SystemExit("%s names %s, which is not a --payload label or caption (%s)"
+                             % (opt, unknown, sorted(names)))
+    for s in specs:
+        label, _, cap = s.partition("=")
+        label = label.strip()
         cap = (cap or label).strip()
         internal = by_cap.get(cap.lower()) or by_cap.get(cap.lower().replace(" ", "_"))
         if not internal:
             raise SystemExit("payload field %r not found in data source %r" % (cap, ds.get("caption")))
-        dt = types.get(cap) or dtype_of.get(internal) or "string"
-        out.append({"label": label.strip(), "caption": "[" + cap + "]", "internal": internal,
+        dt = types.get(label) or types.get(cap) or dtype_of.get(internal) or "string"
+        out.append({"label": label, "caption": "[" + cap + "]", "internal": internal,
                     "type": "string" if dt in ("string", "text") else dt,
-                    "max_chars": maxc.get(cap), "table": table_of.get(internal)})
+                    "max_chars": maxc.get(label) or maxc.get(cap), "table": table_of.get(internal)})
         if table_of.get(internal):
             tables.add(table_of[internal])
     if len(tables) > 1:
@@ -398,13 +448,19 @@ def main(argv=None) -> int:
     ap.add_argument("workbook")
     ap.add_argument("--prompts", help="prompts.json from compose_prompts.py")
     ap.add_argument("--payload", nargs="*", help='"Label=Field Caption" ... (omit to keep current Payload)')
-    ap.add_argument("--payload-max-chars", nargs="*", default=[])
-    ap.add_argument("--payload-type", nargs="*", default=[])
+    ap.add_argument("--payload-max-chars", nargs="*", default=[], metavar="FIELD=N",
+                    help='truncate a Payload field with LEFT(); FIELD = its label or caption, '
+                         'e.g. "Report Content=4000"')
+    ap.add_argument("--payload-type", nargs="*", default=[], metavar="FIELD=TYPE",
+                    help="override a Payload field's datatype (label or caption)")
     ap.add_argument("--models", nargs="*", help='"Display As=model-id" ... replaces Select LLM members')
     ap.add_argument("--prompt-default", default="", help='default text of the Prompt box (default "")')
     ap.add_argument("--keep-prompt", action="store_true", help="leave the Prompt box default as is")
     ap.add_argument("--keep-grounding", action="store_true")
     ap.add_argument("--datasource", help="caption of the data source to use (default: the one with the calc)")
+    ap.add_argument("--response", metavar="CAPTION",
+                    help='caption of the existing SCRIPT_ calc to replace (default "%s"; needed only '
+                         'when a workbook has several SCRIPT_ calcs and none has that caption)' % CAP_RESPONSE)
     ap.add_argument("--out-dir")
     ap.add_argument("--suffix")
     ap.add_argument("--report", help="write a JSON change report here")
@@ -420,28 +476,30 @@ def main(argv=None) -> int:
     tmp = None
     if src.suffix.lower() == ".twbx":
         tmp = Path(tempfile.mkdtemp(prefix="genai_patch_"))
+        atexit.register(shutil.rmtree, tmp, True)   # also on SystemExit / validation failure
         with zipfile.ZipFile(src) as z:
             z.extractall(tmp)
             names = z.namelist()
-        twb_rel = next(n for n in names if n.lower().endswith(".twb") and "/" not in n.strip("/"))
-        twb_path = tmp / twb_rel
+        top = [n for n in names if n.lower().endswith(".twb") and "/" not in n and "\\" not in n
+               and not n.startswith("..")]
+        if not top:
+            raise SystemExit("no top-level .twb inside %s" % src)
+        twb_path = (tmp / top[0]).resolve()
+        if twb_path.parent != tmp.resolve():
+            raise SystemExit("refusing suspicious .twbx member name %r" % top[0])
     else:
         twb_path = src
     raw = twb_path.read_text(encoding="utf-8")
     prologue = raw[:raw.find("<workbook")]
     prologue = re.sub(r"^<\?xml[^>]*\?>\s*", "", prologue)
     root = ET.fromstring(raw, parser=ET.XMLParser(target=ET.TreeBuilder(insert_comments=True)))
-    old_keys = []  # live literals in the old calc(s): must not survive
-    for c in root.iter("column"):
-        calc = c.find("calculation")
-        f = calc.get("formula", "") if calc is not None else ""
-        for m in re.finditer(r"API_KEY\s*=\s*'([^']{8,})'", f):
-            if m.group(1) != genai_calc.PLACEHOLDER:
-                old_keys.append(m.group(1))
+    # live credential literals anywhere in the source (calcs, parameter values and
+    # members, dependency copies): none may survive into the output. Never printed.
+    old_keys = [k for k in credential_values(html.unescape(raw)) if len(k) >= 8]
 
     log = []
     P = Patcher(root, log)
-    ds, sc = P.find_scaffold(a.datasource)
+    ds, sc = P.find_scaffold(a.datasource, a.response)
     ds_name = ds.get("name")
     pds = P.params_ds(create=True)
     created_scaffold = "response" not in sc
@@ -460,10 +518,10 @@ def main(argv=None) -> int:
     if "prompt" not in sc:
         sc["prompt"] = make_param(CAP_PROMPT)
     if "model" not in sc:
-        sc["model"] = make_param(CAP_MODEL)
         if not a.models:
-            ex = genai_calc.PROVIDERS[ca.provider].get("example_models") or ["set-your-model-id"]
-            a.models = ["%s=%s" % (m, m) for m in ex]
+            raise SystemExit('no "%s" parameter in this workbook: pass --models "Display As=model-id" ... '
+                             "(scripts/list_models.py lists the ids your key can use)" % CAP_MODEL)
+        sc["model"] = make_param(CAP_MODEL)
 
     if a.models:
         mem = []
@@ -488,6 +546,10 @@ def main(argv=None) -> int:
             sc["prompts"] = col
         for c in list(P.copies(col.get("name"))):
             P.set_list_param(c, members, default_val)
+            # worksheet dependency copies carry aliases only (see reference/twb_patching.md)
+            if P.parent[c] is not pds and P.holder_of(c) is not None and P.holder_of(c).tag == "worksheet":
+                for e in c.findall("members"):
+                    c.remove(e)
         log.append("Prompts parameter %s: %d members, default %r" % (col.get("name"), len(members),
                                                                        prompts["default_alias"]))
         prompts_ref = "[Parameters].%s" % col.get("name")
@@ -583,9 +645,13 @@ def main(argv=None) -> int:
             if dep is not None:
                 P.ensure_dep(dep, pcol, with_members=(h.tag == "dashboard"))
         log.append("Prompts listed in %d sheet/dashboard dependency blocks" % len(holders))
-        z = P.add_param_zone(p_ref, m_ref, prompts_ref)
-        log.append("Prompts control added to %d dashboard layout(s)" % z if z else
-                   "no dashboard Prompt control found - add the Prompts parameter control manually")
+        z, present = P.add_param_zone(p_ref, m_ref, prompts_ref)
+        if z:
+            log.append("Prompts control added to %d dashboard layout(s)" % z)
+        elif present:
+            log.append("Prompts control already on %d dashboard(s)" % present)
+        else:
+            log.append("no dashboard Prompt control found - add the Prompts parameter control manually")
 
     # ---- validation -------------------------------------------------------
     known = {c.get("name") for c in ds.iter("column")} | {m.findtext("local-name") for m in ds.iter("metadata-record")}
@@ -599,12 +665,13 @@ def main(argv=None) -> int:
                     problems.append("%s references missing parameter %s" % (nm, r))
             elif r not in known:
                 problems.append("%s references missing field %s" % (nm, r))
-    all_formulas = [c.get("formula", "") for c in root.iter("calculation")]
-    if ca.mode == "keystore" and any(has_plaintext_key(f) for f in all_formulas):
-        problems.append("a credential literal remains in a calculation (keystore mode)")
     serialized = ET.tostring(root, encoding="unicode")
-    if any(k in serialized for k in old_keys if k not in demo_values.values()):
-        problems.append("the previous calc's embedded API key is still present somewhere")
+    plain = html.unescape(serialized)
+    if ca.mode == "keystore" and has_plaintext_key(plain):
+        problems.append("a credential-looking literal remains in the workbook (keystore mode); "
+                        "run profile_data.py on the output to see where (values are redacted)")
+    if any(k in plain for k in old_keys if k not in demo_values.values()):
+        problems.append("the source workbook's embedded credential is still present somewhere")
     for db in root.iter("dashboard"):
         for layout in [db.find("zones")] + list(db.iter("devicelayout")):
             if layout is None:
@@ -626,18 +693,20 @@ def main(argv=None) -> int:
     text = "<?xml version='1.0' encoding='utf-8' ?>\n" + prologue.lstrip("\n") + serialized + "\n"
     ET.fromstring(text.encode("utf-8"))  # re-parse check
     secret_inside = bool(demo_values)
+    mode = 0o600 if secret_inside else 0o644
     if tmp:
         twb_path.write_text(text, encoding="utf-8")
-        fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600 if secret_inside else 0o644)
-        os.close(fd)
-        with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as z:
-            for n_ in names:
-                pth = tmp / n_
-                if pth.is_file():
-                    z.write(pth, n_)
+        root_dir = tmp.resolve()
+        fd = _open_private(out_path, mode)
+        with os.fdopen(fd, "wb") as raw_fh, zipfile.ZipFile(raw_fh, "w", zipfile.ZIP_DEFLATED) as z:
+            # re-zip only what extractall() actually wrote under tmp: a crafted member
+            # name ('/abs/path', '../x') must never pull a file from elsewhere on disk
+            for pth in sorted(root_dir.rglob("*")):
+                if pth.is_file() and not pth.is_symlink():
+                    z.write(pth, pth.relative_to(root_dir).as_posix())
         shutil.rmtree(tmp, ignore_errors=True)
     else:
-        fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600 if secret_inside else 0o644)
+        fd = _open_private(out_path, mode)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(text)
 

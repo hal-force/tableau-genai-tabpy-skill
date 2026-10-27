@@ -172,13 +172,18 @@ file with genai_calc.py --tls PATH.
   python3 ca_bundle.py [--out ~/.tableau-genai/ca-bundle.pem] [--test URL]
   python3 ca_bundle.py --add dod_roots.pem          # append extra PEM roots (e.g. DoD PKI)
 
+Certificates from the System keychain are kept only if `security verify-cert`
+accepts them (so an untrusted or expired cert someone added is not turned
+into a trust anchor). --add files are remembered in <out dir>/ca-extra/.
+
 --test makes an unauthenticated GET; any HTTP status (401/403/404) proves the
 TLS handshake verified. No credential is sent.
 
 options:
   -h, --help       show this help message and exit
   --out OUT
-  --add [ADD ...]  extra PEM files to append
+  --add [ADD ...]  extra PEM roots (e.g. DoD PKI); copied to <out dir>/ca-
+                   extra/ and included in every later rebuild
   --test TEST      URL to probe with verification on
 ```
 
@@ -307,13 +312,13 @@ Write the patched .twb/.twbx.
 
 ```text
 usage: patch_workbook.py [-h] [--prompts PROMPTS] [--payload [PAYLOAD ...]]
-                         [--payload-max-chars [PAYLOAD_MAX_CHARS ...]]
-                         [--payload-type [PAYLOAD_TYPE ...]]
+                         [--payload-max-chars [FIELD=N ...]]
+                         [--payload-type [FIELD=TYPE ...]]
                          [--models [MODELS ...]]
                          [--prompt-default PROMPT_DEFAULT] [--keep-prompt]
                          [--keep-grounding] [--datasource DATASOURCE]
-                         [--out-dir OUT_DIR] [--suffix SUFFIX]
-                         [--report REPORT]
+                         [--response CAPTION] [--out-dir OUT_DIR]
+                         [--suffix SUFFIX] [--report REPORT]
                          workbook
 
 Write a new .twb/.twbx with the GenAI calc, Payload, and Prompts parameter.
@@ -351,8 +356,11 @@ options:
   --payload [PAYLOAD ...]
                         "Label=Field Caption" ... (omit to keep current
                         Payload)
-  --payload-max-chars [PAYLOAD_MAX_CHARS ...]
-  --payload-type [PAYLOAD_TYPE ...]
+  --payload-max-chars [FIELD=N ...]
+                        truncate a Payload field with LEFT(); FIELD = its
+                        label or caption, e.g. "Report Content=4000"
+  --payload-type [FIELD=TYPE ...]
+                        override a Payload field's datatype (label or caption)
   --models [MODELS ...]
                         "Display As=model-id" ... replaces Select LLM members
   --prompt-default PROMPT_DEFAULT
@@ -362,6 +370,10 @@ options:
   --datasource DATASOURCE
                         caption of the data source to use (default: the one
                         with the calc)
+  --response CAPTION    caption of the existing SCRIPT_ calc to replace
+                        (default "Generative AI Response"; needed only when a
+                        workbook has several SCRIPT_ calcs and none has that
+                        caption)
   --out-dir OUT_DIR
   --suffix SUFFIX
   --report REPORT       write a JSON change report here

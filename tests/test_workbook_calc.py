@@ -34,8 +34,9 @@ DEMO_RE = re.compile(r"^DEMO_SECRETS = (\{\}|\{.*?^\})", re.M | re.S)
 
 def extract(twb):
     r = ET.parse(twb).getroot()
-    resp = next(c for c in r.iter("column") if c.find("calculation") is not None
-                and "SCRIPT_" in c.find("calculation").get("formula", ""))
+    scripts = [c for c in r.iter("column") if c.find("calculation") is not None
+               and "SCRIPT_" in c.find("calculation").get("formula", "")]
+    resp = next((c for c in scripts if c.get("caption") == "Generative AI Response"), scripts[0])
     f = resp.find("calculation").get("formula")
     m = re.match(r'SCRIPT_STR\("(.*)",\n(.*)\n\)$', f, re.S)
     body = m.group(1).replace('""', '"')
@@ -114,22 +115,28 @@ def main():
         print("LIVE [%s] -> %s" % (alias, out[:300].replace("\n", " ")))
         return 0
 
+    if "def openai_chat(" not in body or any(w in body for w in (
+            "def anthropic_messages(", "TOKEN_URL", "def vertex_access_token(", "bedrock")):
+        raise SystemExit("this test drives the OpenAI-compatible wire only (gateway, openai, "
+                         "azure-openai, asksage). Other providers: tests/test_calc_e2e.py, or --live.")
     srv, base = mock.start()
     secret = re.search(r"get_secret\('([^']+)'\)", body)
     sname = secret.group(1) if secret else "gateway"
-    env_var = "TABLEAU_GENAI_" + re.sub(r"[^A-Za-z0-9]", "_", sname).upper()
     mocked = re.sub(r"^API_URL = .*$", "API_URL = %r" % (base + "/chat/completions"), body, count=1, flags=re.M)
     mocked = mocked.replace("TLS_VERIFY = ", "TLS_VERIFY = False  # test\n_unused = ", 1)
     demo = re.search(r"^DEMO_SECRETS = ", body, re.M) is not None
     if demo:
         # DEMO build: swap the embedded dict (placeholder or injected key) for the mock key
         mocked = DEMO_RE.sub(lambda m: "DEMO_SECRETS = %r" % {sname: mock.TEST_KEY}, mocked, count=1)
-    elif a.tabpy:
-        # TabPy runs in another process: inject the mock key the same way an env var would
-        mocked = mocked.replace("def get_secret(name):", "import os as _os\n_os.environ[%r] = %r\ndef get_secret(name):"
-                                % (env_var, mock.TEST_KEY), 1)
-    elif not demo:
-        os.environ[env_var] = mock.TEST_KEY
+    else:
+        # keystore build: override get_secret inside this test copy of the body only.
+        # (Setting os.environ would leak the mock key into a long-lived TabPy process.)
+        hook = "def missing_secret(name):"
+        assert hook in mocked, "keystore section not recognised"
+        mocked = mocked.replace(hook, "_t_real_get_secret = get_secret\n"
+                                      "def get_secret(name):\n"
+                                      "    return %r if name == %r else _t_real_get_secret(name)\n%s"
+                                % (mock.TEST_KEY, sname, hook), 1)
     for alias, val in prompts.items():
         out = evaluate(a.tabpy, mocked, {"_arg1": [val], "_arg2": [grounding], "_arg3": [a.model],
                                          "_arg4": [tokens], "_arg5": ["Focus on Pantex." if not val else ""]})

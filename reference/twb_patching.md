@@ -2,10 +2,14 @@
 
 ## Finding the scaffold
 
-1. The **Response** calc: a column whose formula contains `SCRIPT_`.
+1. The **Response** calc: the `SCRIPT_` calc captioned `--response`
+   (default *Generative AI Response*); if none has that caption, the only
+   `SCRIPT_` calc; several uncaptioned ones is an error.
 2. **Grounding** / **Prompt**: the parameter-action (`edit-parameter-action`)
    target is Grounding; its source field is the Payload aggregation. Prompt,
-   Select LLM, Token Count are found by caption, then by the Response's args.
+   Select LLM, Token Count are found by caption, then by the Response's
+   `SCRIPT_STR` args (4-arg: Prompt, Grounding, Select LLM, Token Count;
+   5-arg: Prompts, Grounding, Select LLM, Token Count, Prompt).
 3. **Prompts**: an existing string list parameter captioned `Prompts` is
    reused; otherwise a new one gets the next free `[Parameter N]` name.
 

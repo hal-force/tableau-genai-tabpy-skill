@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import re
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 TEST_KEY = "test-key-0123456789"
@@ -15,15 +16,18 @@ TEST_EMAIL = "analyst@example.mil"
 ASKSAGE_ACCESS = "access-token-xyz"
 
 LAST = {}
+HITS = {}   # path -> request count (retry tests)
 
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):  # quiet
         pass
 
-    def _send(self, code, obj):
+    def _send(self, code, obj, headers=None):
         raw = json.dumps(obj).encode()
         self.send_response(code)
+        for k, v in (headers or {}).items():
+            self.send_header(k, v)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
@@ -37,6 +41,18 @@ class Handler(BaseHTTPRequestHandler):
         LAST.clear()
         LAST.update(path=path, headers=h, body=body)
         bearer = h.get("authorization") == "Bearer " + TEST_KEY
+        HITS[path] = HITS.get(path, 0) + 1
+
+        # ---- failure-mode routes (tests/test_calc_e2e.py) ----------------
+        if path.startswith("/flaky/"):      # 429 + Retry-After once, then OK
+            if HITS[path] == 1:
+                return self._send(429, {"error": "slow down"}, {"Retry-After": "0"})
+        elif path.startswith("/slow/"):     # longer than the calc's timeout
+            time.sleep(3)
+        elif path.startswith("/list/"):     # valid JSON, wrong shape
+            return self._send(200, ["not", "an", "object"])
+        elif path.startswith("/echo401/"):  # provider that echoes the credential
+            return self._send(401, {"error": "invalid key " + h.get("authorization", "")})
 
         if path.endswith("/user/get-token-with-api-key"):
             if body.get("email") == TEST_EMAIL and body.get("api_key") == TEST_KEY:

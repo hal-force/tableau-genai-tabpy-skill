@@ -35,6 +35,26 @@ SECURITY = "/usr/bin/security"
 # Characters that pass through `security -i` quoting untouched. Anything
 # else (quotes, spaces, backslashes, newlines, JSON) is stored base64.
 _SAFE = re.compile(r"^[A-Za-z0-9._~+/=:@%-]+$")
+# Secret / service names are interpolated into a `security -i` command line,
+# so they are restricted to characters that need no quoting.
+NAME_RX = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+DEFAULT_DIR = Path(os.path.expanduser("~/.tableau-genai"))
+
+
+def check_name(name: str, what: str = "secret name") -> str:
+    if not NAME_RX.match(name or ""):
+        raise ValueError("invalid %s %r: use 1-64 of A-Z a-z 0-9 . _ -" % (what, name))
+    return name
+
+
+def _warn_if_shared(p: Path) -> None:
+    """Warn (stderr, no value) when the secrets file is group/other readable."""
+    try:
+        if os.name == "posix" and p.stat().st_mode & 0o077:
+            print("WARNING: %s is readable by other users; run: chmod 600 '%s'" % (p, p),
+                  file=sys.stderr)
+    except OSError:
+        pass
 
 
 def env_name(name: str) -> str:
@@ -70,6 +90,8 @@ def is_macos_keychain() -> bool:
 # --------------------------------------------------------------------- read
 def get_secret(name: str, service: str = SERVICE) -> tuple[str, str]:
     """Return (value, source). value == '' when not found."""
+    check_name(name)
+    check_name(service, "service")
     v = _decode(os.environ.get(env_name(name), ""))
     if v:
         return v, "env:" + env_name(name)
@@ -96,6 +118,7 @@ def get_secret(name: str, service: str = SERVICE) -> tuple[str, str]:
         data = json.loads(p.read_text())
         v = _decode(str(data.get(name, "") or ""))
         if v:
+            _warn_if_shared(p)
             return v, "file:" + str(p)
     except Exception:
         pass
@@ -106,6 +129,8 @@ def get_secret(name: str, service: str = SERVICE) -> tuple[str, str]:
 def store_secret(name: str, value: str, backend: str = "auto",
                  service: str = SERVICE) -> str:
     """Persist a secret. Returns the backend used. Never echoes the value."""
+    check_name(name)
+    check_name(service, "service")
     value = value.strip()
     if not value:
         raise ValueError("empty value - nothing stored")
@@ -134,8 +159,9 @@ def store_secret(name: str, value: str, backend: str = "auto",
 
     if backend == "file":
         p = secrets_file()
-        p.parent.mkdir(parents=True, exist_ok=True)
-        os.chmod(p.parent, 0o700)
+        p.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if p.parent.resolve() == DEFAULT_DIR.resolve():
+            os.chmod(p.parent, 0o700)   # only tighten our own directory, never a custom parent
         data = {}
         if p.exists():
             try:
@@ -144,15 +170,17 @@ def store_secret(name: str, value: str, backend: str = "auto",
                 data = {}
         data[name] = _encode(value)
         fd = os.open(str(p), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)   # also tightens a pre-existing file
         with os.fdopen(fd, "w") as fh:
             json.dump(data, fh, indent=2)
-        os.chmod(p, stat.S_IRUSR | stat.S_IWUSR)
         return "file:" + str(p)
 
     raise ValueError("unknown backend " + backend)
 
 
 def get_secret_from_keychain(name: str, service: str = SERVICE) -> tuple[str, str]:
+    check_name(name)
+    check_name(service, "service")
     if not is_macos_keychain():
         return "", ""
     r = subprocess.run([SECURITY, "find-generic-password", "-s", service, "-a",
@@ -161,6 +189,8 @@ def get_secret_from_keychain(name: str, service: str = SERVICE) -> tuple[str, st
 
 
 def delete_secret(name: str, service: str = SERVICE) -> list[str]:
+    check_name(name)
+    check_name(service, "service")
     removed = []
     if is_macos_keychain():
         r = subprocess.run([SECURITY, "delete-generic-password", "-s", service,
@@ -180,7 +210,10 @@ def delete_secret(name: str, service: str = SERVICE) -> list[str]:
             data = json.loads(p.read_text())
             if name in data:
                 del data[name]
-                p.write_text(json.dumps(data, indent=2))
+                fd = os.open(str(p), os.O_WRONLY | os.O_TRUNC)
+                os.fchmod(fd, 0o600)
+                with os.fdopen(fd, "w") as fh:
+                    json.dump(data, fh, indent=2)
                 removed.append("file")
         except Exception:
             pass

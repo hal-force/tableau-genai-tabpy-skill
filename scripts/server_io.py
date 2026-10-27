@@ -114,12 +114,17 @@ def main(argv=None) -> int:
     if a.cmd == "publish":
         from profile_data import has_plaintext_key
         p = Path(os.path.expanduser(a.file))
-        raw = (zipfile.ZipFile(p).read(next(n for n in zipfile.ZipFile(p).namelist() if n.endswith(".twb"))).decode("utf-8")
-               if p.suffix.lower() == ".twbx" else p.read_text(encoding="utf-8"))
+        if p.suffix.lower() in (".twbx", ".tdsx"):
+            with zipfile.ZipFile(p) as z:   # scan every workbook / data source member
+                raw = "\n".join(z.read(n).decode("utf-8", "replace") for n in z.namelist()
+                                 if n.lower().endswith((".twb", ".tds")))
+        else:
+            raw = p.read_text(encoding="utf-8")
         import html
         if has_plaintext_key(html.unescape(raw)):
-            raise SystemExit("refusing to publish: this workbook embeds an LLM credential (demo build). "
-                             "Publish the keystore build instead.")
+            raise SystemExit("refusing to publish: this workbook embeds a credential-looking literal "
+                             "(a demo build with an injected key, or a hand-written key). Publish the "
+                             "keystore build instead.")
         if re.search(r"class='hyper'[^>]*dbname='/", raw) and p.suffix.lower() == ".twb":
             print("WARNING: .twb points at local .hyper files the server cannot read; package as "
                   ".twbx in Tableau Desktop (File > Export Packaged Workbook) or publish the data "

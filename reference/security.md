@@ -68,10 +68,23 @@ calc caps grounding at `MAX_GROUNDING_TOKENS` but does not redact.
 * `profile_data.py` flags `PLAINTEXT_API_KEY`, `GROUNDING_SAVED_VALUE`
   (a saved Grounding parameter value is data at rest in the .twb), and
   `TLS_VERIFY_DISABLED`; it prints redacted snippets only.
+* Detection is quote-agnostic (`'…'`, `"…"`, Tableau's `""…""`), covers
+  `api_key` / `x-api-key` / `access_token` / `client_secret` / `password`
+  assignments and dict entries, `Bearer` literals, non-placeholder
+  `DEMO_SECRETS` values, and common token formats (`sk-…`, `AKIA…`, `AIza…`,
+  `gh*_…`, PEM private keys), anywhere in the XML — calcs, parameter values
+  and members, dependency copies.
 * `patch_workbook.py` fails if a keystore build contains any credential-looking
-  literal, or if the source's old key survives anywhere in the output; DEMO
-  builds with an injected key are written chmod 600.
-* `server_io.py publish` refuses any workbook that embeds a credential.
+  literal, or if any credential value from the source survives anywhere in the
+  output; DEMO builds with an injected key are written chmod 600.
+* `server_io.py publish` refuses any workbook (every `.twb`/`.tds` member of a
+  `.twbx`/`.tdsx`) that contains a credential-looking literal.
+* The generated calc scrubs every credential it resolved (and Ask Sage access
+  tokens) from whatever it returns, so a provider error body that echoes the
+  key is shown as `<redacted>`.
+* `ca_bundle.py` only exports System-keychain certificates that macOS trust
+  evaluation accepts, so an untrusted cert sitting in the keychain doesn't
+  become a trust anchor for the calc.
 * `--tls insecure` sets `TLS_VERIFY = False` (certificate checks off, warning
   suppressed) — it exists only to reproduce the old `verify=False` calc; use a
   CA bundle instead.

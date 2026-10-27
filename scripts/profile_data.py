@@ -22,6 +22,7 @@ interpreter or any Python that has it).
 from __future__ import annotations
 
 import argparse
+import atexit
 import csv
 import json
 import os
@@ -34,24 +35,66 @@ import zipfile
 from pathlib import Path
 
 LONG_TEXT_CHARS = 300
-SECRET_RX = re.compile(r"(API_KEY\s*=\s*')([^']{6,})(')|(Bearer\s+)([A-Za-z0-9._\-]{12,})")
 PLACEHOLDER = "PASTE_YOUR_API_KEY_HERE"
+
+# Credential detection. Quote-agnostic on purpose: inside a Tableau formula a
+# Python string may be written '...', "..." or ""..."" (Tableau doubles " in
+# string literals), and keys also turn up in header dicts and parameter values.
+_Q = r"""(?P<q>""|"|')"""
+CRED_RX = [
+    # api_key = '...', 'x-api-key': "...", ""password"": ""..."", client_secret=...
+    re.compile(r"(?i)(?:api[_-]?key|access[_-]?token|auth[_-]?token|bearer[_-]?token|"
+               r"secret[_-]?access[_-]?key|client[_-]?secret|pat[_-]?secret|password)"
+               r"[\"']*\s*[:=]\s*" + _Q + r"(?P<v>[^\"'\s]{6,})(?P=q)"),
+    re.compile(r"(?i)\bbearer\s+(?P<v>[A-Za-z0-9._~+/=-]{12,})"),
+    re.compile(r"(?P<v>\bsk-[A-Za-z0-9_-]{20,})"),                    # OpenAI / Anthropic style
+    re.compile(r"(?P<v>\b(?:AKIA|ASIA)[0-9A-Z]{16})\b"),              # AWS access key id
+    re.compile(r"(?P<v>\bAIza[0-9A-Za-z_-]{35})"),                     # Google API key
+    re.compile(r"(?P<v>\bgh[pousr]_[A-Za-z0-9]{36})"),                 # GitHub token
+    re.compile(r"(?P<v>-----BEGIN [A-Z ]*PRIVATE KEY-----)"),
+]
+_DEMO_DICT = re.compile(r"DEMO_SECRETS\s*=\s*\{(?P<body>.*?)\n?\}", re.S)
+_DEMO_VAL = re.compile(r":\s*" + _Q + r"(?P<v>(?:(?!(?P=q)).){6,}?)(?P=q)", re.S)
+
+
+def credential_spans(text: str):
+    """(start, end) spans of credential-looking values in text. Never returns values."""
+    text = text or ""
+    spans = []
+    for rx in CRED_RX:
+        for m in rx.finditer(text):
+            if m.group("v") != PLACEHOLDER:
+                spans.append(m.span("v"))
+    for d in _DEMO_DICT.finditer(text):
+        off = d.start("body")
+        for m in _DEMO_VAL.finditer(d.group("body")):
+            if m.group("v") != PLACEHOLDER:
+                spans.append((off + m.start("v"), off + m.end("v")))
+    merged = []
+    for a, b in sorted(spans):
+        if merged and a <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(b, merged[-1][1]))
+        else:
+            merged.append((a, b))
+    return merged
+
+
+def credential_values(text: str) -> list:
+    """The literal values (for must-not-survive checks; never print these)."""
+    return [text[a:b] for a, b in credential_spans(text)]
+
+
+def has_plaintext_key(text: str) -> bool:
+    return bool(credential_spans(text))
 
 
 def redact(s: str) -> str:
-    def sub(m):
-        if m.group(1):
-            v = m.group(2)
-            return m.group(1) + (v if v == PLACEHOLDER else "<redacted %d chars>" % len(v)) + m.group(3)
-        return m.group(4) + "<redacted>"
-    return SECRET_RX.sub(sub, s or "")
-
-
-def has_plaintext_key(formula: str) -> bool:
-    for m in re.finditer(r"API_KEY\s*=\s*'([^']*)'", formula or ""):
-        if m.group(1) and m.group(1) != PLACEHOLDER:
-            return True
-    return bool(re.search(r"DEMO_SECRETS\s*=\s*\{[^}]*:\s*'(?!PASTE_YOUR_API_KEY_HERE)[^']{6,}'", formula or ""))
+    s = s or ""
+    out, last = [], 0
+    for a, b in credential_spans(s):
+        out.append(s[last:a] + "<redacted %d chars>" % (b - a))
+        last = b
+    return "".join(out) + s[last:]
 
 
 # ======================================================================
@@ -61,6 +104,7 @@ def load_twb(path: Path):
     """Return (ElementTree root, twb_path, extracted_dir or None)."""
     if path.suffix.lower() == ".twbx":
         tmp = Path(tempfile.mkdtemp(prefix="genai_twbx_"))
+        atexit.register(shutil.rmtree, tmp, True)
         with zipfile.ZipFile(path) as z:
             z.extractall(tmp)
         twbs = [p for p in tmp.rglob("*.twb")]
@@ -198,7 +242,9 @@ def detect_scaffold(root, struct: dict) -> dict:
                 continue
             f = calc.get("formula") or ""
             cap = c.get("caption") or c.get("name")
-            if "SCRIPT_" in f and sc["response_calc"] is None:
+            prev = sc["response_calc"]
+            if "SCRIPT_" in f and (prev is None or ((cap or "").lower() == "generative ai response"
+                                                    and (prev["caption"] or "").lower() != "generative ai response")):
                 url = re.search(r"API_URL\s*=\s*'([^']+)'", f)
                 sc["response_calc"] = {"caption": cap, "internal": c.get("name"),
                                        "datasource": ds.get("name"),
@@ -447,6 +493,7 @@ def main(argv=None) -> int:
                         data_files.append(h)
         elif suf == ".tdsx":
             tmp = Path(tempfile.mkdtemp(prefix="genai_tdsx_"))
+            atexit.register(shutil.rmtree, tmp, True)
             with zipfile.ZipFile(p) as z:
                 z.extractall(tmp)
             data_files += list(tmp.rglob("*.hyper"))

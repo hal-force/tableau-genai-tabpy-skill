@@ -48,7 +48,15 @@ extension" or a timeout after a few seconds** — Tableau's extension timeout
 is shorter than the model's answer time. Raise it (Desktop: the
 analytics-extension connection's timeout; Server: `tsm configuration set -k
 vizqlserver.extsvc.default_timeout_in_seconds`) and TabPy's
-`TABPY_EVALUATE_TIMEOUT`, both above the calc's `--timeout` (120 s default).
+`TABPY_EVALUATE_TIMEOUT`, both above the calc's `--timeout` (120 s default)
+plus retry back-off (~7 s; up to 30 s per retry when the provider sends
+`Retry-After`).
+
+**`No answer from <provider> within N s …`** — the provider accepted the
+request but didn't finish in `--timeout` seconds. Read timeouts are not
+retried (that would multiply the wait). Select fewer marks, ask for a
+shorter answer, or rebuild with a larger `--timeout` and raise the Tableau /
+TabPy timeouts to match.
 
 **`Grounding context is too large (N tokens, max 90000)`** — select fewer
 marks or filter; or truncate long text in the Payload
@@ -69,8 +77,16 @@ so the provider's reason is visible; the key itself is never echoed.
 Azure, model = deployment name; for Bedrock, use an inference-profile id
 (`us.` / `us-gov.` prefix) where required.
 
-**`HTTP 429`** — retried 3 times with backoff before surfacing; reduce
+**`HTTP 429`** — retried 3 times with exponential back-off (or the
+provider's `Retry-After`, capped at 30 s) before surfacing; reduce
 concurrency (each mark change re-evaluates) or ask for higher limits.
+
+**`Unexpected response shape from <provider> (expected a JSON object)`** —
+the endpoint returned valid JSON that isn't a chat/completion object (often a
+list from a non-chat route); check `--url`.
+
+**`<redacted>` in an error** — the provider echoed a credential back; the calc
+replaced it before showing the message.
 
 **`Non-JSON response`** — usually a proxy login page or an HTML error from a
 gateway; check `--url` and network path from the TabPy host.
@@ -84,10 +100,26 @@ that layout.
 **Response shows the old 4-argument behaviour** — you opened the original,
 not `… (GenAI - X).twb`.
 
+**`payload field 'X' not found in data source …`** — a `--payload` caption
+that doesn't exist in the data source (`profile.md` lists captions). Nothing
+was written.
+
+**`--payload-max-chars names ['X'], which is not a --payload label or
+caption`** — use the label (`Report Content`) or the field caption
+(`Full Text`) from your `--payload` list.
+
+**`several SCRIPT_ calculations and none captioned 'Generative AI
+Response'`** — pass `--response "<caption of the calc to replace>"`.
+
+**`no "Select LLM" parameter in this workbook: pass --models …`** — the
+patcher won't invent model ids; list them with `list_models.py`.
+
 **`VALIDATION FAILED: …` from `patch_workbook.py`** — the output was not
-written. Typical causes: a `--payload` caption that doesn't exist in the data
-source (`profile.md` lists captions), or a credential literal surviving in a
-keystore build (report it — it's a bug).
+written. Causes: a calc references a field / parameter that doesn't exist, a
+credential-looking literal anywhere in a keystore build, the source
+workbook's key surviving somewhere, or duplicate dashboard zone ids. Run
+`profile_data.py` on the source to see where (values redacted); a
+credential in a *generated* keystore build is a bug — please report it.
 
 **Publishing a `.twb` warns about local `.hyper` files** — export a packaged
 workbook (*File → Export Packaged Workbook*) or publish the data sources

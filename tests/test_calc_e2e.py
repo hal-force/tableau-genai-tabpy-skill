@@ -143,6 +143,21 @@ def main():
     case("--no-prompts-param uses _arg1 as question", np_body,
          {"_arg1": ["Q only"], "_arg2": [GROUNDING], "_arg3": ["m1"], "_arg4": [25]}, "MOCK-OPENAI")
 
+    # ---- HTTP edge cases ---------------------------------------------------
+    fl = body_for("gateway", "demo", ["--url", base + "/flaky/chat/completions"], demo("gateway"))
+    case("429 + Retry-After retried, then OK", fl, args_for("m1"), "MOCK-OPENAI")
+    results.append((mock.HITS.get("/flaky/chat/completions") == 2, "429 retried exactly once", str(mock.HITS)))
+    import time as _time
+    sl = body_for("gateway", "demo", ["--url", base + "/slow/chat/completions", "--timeout", "1"], demo("gateway"))
+    t0 = _time.time()
+    case("ReadTimeout -> readable error", sl, args_for("m1"), "No answer from")
+    results.append((_time.time() - t0 < 2.5 and mock.HITS.get("/slow/chat/completions") == 1,
+                    "ReadTimeout is not retried", "%.1fs" % (_time.time() - t0)))
+    ls = body_for("gateway", "demo", ["--url", base + "/list/chat/completions"], demo("gateway"))
+    case("non-object JSON -> readable error", ls, args_for("m1"), "Unexpected response shape")
+    ec = body_for("gateway", "demo", ["--url", base + "/echo401/chat/completions"], demo("gateway"))
+    case("credential echoed by provider is scrubbed", ec, args_for("m1"), ["HTTP 401", "<redacted>"], forbid=K)
+
     cab = body_for("gateway", "demo", ["--url", base + "/chat/completions", "--tls", "/nonexistent/ca.pem"], demo("gateway"))
     case("missing CA bundle -> readable error", cab, args_for("m1"), "TLS CA bundle /nonexistent/ca.pem was not found")
     import tempfile

@@ -128,6 +128,10 @@ def main(argv=None) -> int:
                     help="file = ~/.tableau-genai/secrets.json (chmod 600); use for "
                          "Linux/Docker TabPy hosts with no OS keystore")
     a = ap.parse_args(argv)
+    try:
+        keystore.check_name(a.name)
+    except ValueError as e:
+        ap.error(str(e))
 
     if a.check:
         v, source = keystore.get_secret(a.name)

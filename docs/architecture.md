@@ -52,7 +52,8 @@ one-element list.
 | `SECRETS_KEYSTORE` / `SECRETS_DEMO` | `get_secret(name)` + `missing_secret(name)`. Keystore: env → `/usr/bin/security find-generic-password` → `keyring` → secrets JSON; values may be `b64:`-prefixed (used by `keystore.py` for values with quotes/newlines). Demo: a `DEMO_SECRETS` dict; the placeholder counts as empty |
 | `GUARDS` | token count < 1 → "Click the Analyze …"; > `MAX_GROUNDING_TOKENS` → "split by …"; no model → "Select a model …" |
 | `PROMPT_*` | template + optional `ANALYST QUESTION` + `GROUNDING DATA` + required self-assessment block + task reminder |
-| `HTTP` | `post_json()` — retries 429/500/502/503/504 and network errors with exponential backoff (3 retries); every failure becomes `{'_error': …}`; response text is truncated |
+| `SECRETS_WRAP` | wraps `get_secret` so every resolved value is added to `SCRUB`; the footer replaces those values with `<redacted>` in whatever the calc returns (covers providers that echo keys in error bodies) |
+| `HTTP` | `post_json()` — retries 429/500/502/503/504 (honouring `Retry-After`, capped at 30 s) and connection errors with exponential back-off (3 retries); **read timeouts are not retried**; non-JSON and non-object JSON become readable errors; every failure becomes `{'_error': …}`; response text is truncated |
 | `WIRE_*` | one function per wire format (below) |
 | footer | resolves credentials, calls the wire function, returns `[text]` |
 
@@ -96,7 +97,9 @@ flowchart TD
 - Parses the workbook XML (from `.twbx` via zip), lists datasources, logical
   tables, columns (caption ↔ internal name), parameters, sheets, dashboards
   and parameter actions.
-- Detects the GenAI scaffold and risks: `PLAINTEXT_API_KEY` (pattern-based,
+- Detects the GenAI scaffold (preferring the calc captioned *Generative AI
+  Response* when there are several `SCRIPT_` calcs) and risks:
+  `PLAINTEXT_API_KEY` (quote-agnostic pattern set — `credential_spans()` —
   never printed), `GROUNDING_SAVED_VALUE`, `TLS_VERIFY_DISABLED`.
 - Profiles data from Hyper (the file is **copied to a temp dir first** so the
   user's extract is never locked or modified) or CSV: rows, nulls, empty
@@ -120,19 +123,30 @@ See [`reference/twb_patching.md`](../reference/twb_patching.md) for the XML.
 Order of operations:
 
 1. load (`.twbx` → inner `.twb`), keep prologue/comments
-2. `find_scaffold` (via the parameter action, then captions) or create one
+2. `find_scaffold`: the Response by caption (`--response`, default
+   *Generative AI Response*; a sole `SCRIPT_` calc is accepted; several
+   uncaptioned ones is an error), Payload / Grounding via the parameter
+   action, then captions, then the Response's own `SCRIPT_STR` arguments
+   (so renamed parameters are still found) — or create the scaffold
+   (`--models` required when Select LLM must be created)
 3. Prompts parameter: create or update (`set_list_param` in every copy)
 4. Payload: rebuild from `--payload`
 5. Response: generate with `genai_calc`, rewrite caption refs to internal
    names, `set_formula_everywhere`
 6. optional: Select LLM members (`--models`), Grounding reset, Prompt default
 7. dashboard: `add_param_zone` in every layout
-8. validate (refs, credentials, zone ids, re-parse) → write → report
+8. validate (refs; credential scan of the whole output in keystore mode;
+   the source's credential values must not survive in any mode; zone ids;
+   re-parse) → write (chmod 600 when a key is embedded, also on an existing
+   file) → report. `.twbx` members are re-zipped only from what was
+   extracted under the temp dir (no symlinks, no paths outside it); the temp
+   dir is removed on every exit path.
 
 ### `server_io.py`
 Thin wrapper over `tableauserverclient` with PAT auth. Credentials are read
 from env, then the companion prep skill's Keychain items, then this skill's
-keystore. `publish` scans the workbook for credentials first.
+keystore. `publish` scans every `.twb` / `.tds` in the file for credentials
+first.
 
 ### `keystore.py` / `set_secret.py`
 `keystore.py` is the authoring-side twin of the inlined `get_secret()` (same
@@ -140,3 +154,12 @@ order, same names) plus `store_secret` / `delete_secret`. Values containing
 characters the `security` CLI mangles are stored `b64:`-encoded.
 `set_secret.py` is the only entry point that ever handles a raw value, and it
 reads it from a hidden dialog, a no-echo prompt, the clipboard or a file.
+Secret and service names are restricted to `[A-Za-z0-9._-]{1,64}` (they are
+interpolated into the `security -i` command); the secrets file is re-chmodded
+600 on every write and a warning is printed when it is group/other readable.
+
+### `ca_bundle.py`
+Apple's root store + System-keychain certificates that `security verify-cert`
+accepts (untrusted / expired admin-added certs are skipped and counted) +
+certifi + `--add` files. `--add` files are copied to `<out dir>/ca-extra/` so
+every later rebuild keeps them.

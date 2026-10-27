@@ -11,6 +11,7 @@ venv/
 secrets.json
 *.pem
 *.key
+ca-extra/
 
 # Tableau artifacts (may contain data or credentials)
 *.twb
@@ -20,6 +21,9 @@ secrets.json
 *.hyper
 *.tfl
 *.tflx
+# genai_calc.py output (DEMO calcs may embed a key)
+*.twbcalc
+generative_ai_response.*
 
 # Per-run output
 out/

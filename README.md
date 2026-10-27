@@ -31,7 +31,7 @@ Given a workbook (or its data), the skill:
    short description as *Display As* — wired into the response and added to
    the dashboard.
 
-> Status: `v0.1.0-preview`. Verified end-to-end against mock providers (in
+> Status: `v0.1.1-preview`. Verified end-to-end against mock providers (in
 > process and through a real TabPy) and in Tableau Desktop with an
 > OpenAI-compatible gateway. Live calls to every provider have **not** all
 > been exercised — see [Limitations](#limitations).
@@ -90,11 +90,13 @@ into **Grounding**. The calc then:
    → a task reminder;
 3. resolves the credential on the TabPy host (keystore build) or from the
    calc (demo build);
-4. calls the provider in its native wire format with retries on
-   429/5xx/network errors; and
+4. calls the provider in its native wire format, retrying 429/5xx
+   (honouring `Retry-After`) and connection errors — but not read timeouts,
+   so a slow model can't multiply the wait past Tableau's timeout; and
 5. returns the model text, or a readable message for every failure (missing
-   key, missing CA bundle, HTTP error, non-JSON response) — never a stack
-   trace.
+   key, missing CA bundle, HTTP error, timeout, non-JSON or wrongly shaped
+   response) — never a stack trace. Any credential value a provider echoes
+   back in an error is replaced with `<redacted>`.
 
 Calc anatomy and XML editing details:
 [`docs/architecture.md`](docs/architecture.md),
@@ -222,15 +224,19 @@ and [`SECURITY.md`](SECURITY.md)):
   (service `tableau-genai`) → `keyring` → `~/.tableau-genai/secrets.json`.
   Missing → a dashboard message saying how to store it.
 - **Demo build:** credential literal in the calc (placeholder by default).
-  Laptop demos only; `server_io.py publish` refuses it; injected-key builds
-  are written chmod 600.
+  Laptop demos only; `server_io.py publish` refuses any workbook with a
+  credential-looking literal (so an injected-key build can't be published);
+  injected-key builds are written chmod 600.
 - **Keys never transit the LLM.** `set_secret.py` reads from a hidden dialog,
   no-echo prompt, clipboard (cleared afterwards) or file. All scripts print
   only `present/stored (N chars)`.
 - **Verified TLS** with a CA bundle instead of `verify=False`.
-- **Detects** plaintext keys, saved Grounding values (data at rest in the
-  `.twb`) and disabled TLS in existing workbooks; the patcher refuses to
-  write a keystore build that still contains a credential.
+- **Detects** plaintext keys (quote-agnostic: `API_KEY = '…'`, Tableau's
+  `""…""`, header dicts, `Bearer …`, parameter values, common `sk-` / `AKIA`
+  / `AIza` / `gh*_` formats), saved Grounding values (data at rest in the
+  `.twb`) and disabled TLS in existing workbooks. The patcher scans the whole
+  output and refuses to write a keystore build that contains a credential,
+  or any build in which the source workbook's key survives.
 - **TabPy caveats you must handle:** DEBUG logging writes every script and
   argument (keys in demo calcs, grounding text) to disk; TabPy listens on all
   interfaces by default; the keystore is resolved on the *TabPy* host, so a
@@ -243,7 +249,7 @@ and [`SECURITY.md`](SECURITY.md)):
 ## Testing
 
 ```sh
-python3 tests/test_calc_e2e.py                               # every provider vs. a local mock (33 cases)
+python3 tests/test_calc_e2e.py                               # every provider vs. a local mock (39 cases)
 python3 tests/test_calc_e2e.py --tabpy http://127.0.0.1:9004 # same, through a real TabPy /evaluate
 python3 tests/test_workbook_calc.py "WB (GenAI - X).twb" [--grounding-hyper DATA.hyper] [--tabpy URL]
 python3 tests/test_workbook_calc.py "WB (GenAI - X).twb" --live --tabpy http://127.0.0.1:9004  # real provider, your key
@@ -251,14 +257,19 @@ python3 tests/test_workbook_calc.py "WB (GenAI - X).twb" --live --tabpy http://1
 
 - `tests/mock_providers.py` serves OpenAI, Anthropic, Bedrock Converse,
   Gemini, Ask Sage native and Palantir shapes on `127.0.0.1` and checks auth
-  headers like the real services. `test_calc_e2e.py` covers every provider,
-  prompt assembly, every guard, 401 handling (key not echoed), unreachable
-  hosts, missing CA bundles, and the env / Keychain lookup paths. No network,
-  no real key.
+  headers like the real services, plus failure-mode routes (429 +
+  `Retry-After`, slow, wrong JSON shape, a provider that echoes the key).
+  `test_calc_e2e.py` (39 cases) covers every provider, prompt assembly,
+  every guard, 401 handling (key not echoed), retry / timeout behaviour,
+  credential scrubbing, unreachable hosts, missing CA bundles, and the env /
+  Keychain lookup paths. No network, no real key.
 - `test_workbook_calc.py` extracts the `SCRIPT_STR` body from a patched
   workbook exactly as Tableau sends it, runs every Prompts member, the
   "no key stored" path and the empty-grounding guard. It handles both
-  keystore and demo builds.
+  keystore and demo builds of the OpenAI-compatible wire (gateway, openai,
+  azure-openai, asksage); other providers are covered by `test_calc_e2e.py`.
+  The mock key is injected into the test copy of the calc only — never into
+  TabPy's environment.
 - `--live` prints only the first 300 characters of the model's answer.
 
 ## Repository layout
@@ -305,8 +316,9 @@ covered in [`docs/troubleshooting.md`](docs/troubleshooting.md).
   before publishing.
 - The grounding is not redacted; the token estimate is `LEN/4`.
 - Tableau's analytics-extension timeout and TabPy's
-  `TABPY_EVALUATE_TIMEOUT` must both exceed the calc's request timeout
-  (default 120 s).
+  `TABPY_EVALUATE_TIMEOUT` must both exceed the calc's worst case: the
+  request timeout (default 120 s) plus up to ~7 s of retry back-off, longer
+  if a provider sends a large `Retry-After` (capped at 30 s per retry).
 
 ## Documentation index
 
