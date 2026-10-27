@@ -1,0 +1,1829 @@
+{
+  "workbook": {
+    "path": "~/Documents/My Tableau Repository/Workbooks/dnfsb_full.twb",
+    "twb": "~/Documents/My Tableau Repository/Workbooks/dnfsb_full.twb",
+    "datasources": [
+      {
+        "name": "federated.03lxilz0vx55r91dkm5vk1yd1r0l",
+        "caption": "Reports+ (Multiple Connections)",
+        "connections": [
+          {
+            "class": "hyper",
+            "dbname": "~/dnfsb_flow/outputs/DNFSB Reports 2020-2024.hyper"
+          },
+          {
+            "class": "hyper",
+            "dbname": "~/dnfsb_flow/outputs/DNFSB Report Entities (LLM) 2020-2024.hyper"
+          },
+          {
+            "class": "hyper",
+            "dbname": "~/dnfsb_flow/outputs/DNFSB Issue Types 2020-2024.hyper"
+          },
+          {
+            "class": "hyper",
+            "dbname": "~/dnfsb_flow/outputs/DNFSB Issue Type Trends 2020-2024.hyper"
+          }
+        ],
+        "relations": [
+          {
+            "name": "Reports",
+            "table": "[Extract].[Reports]",
+            "connection": "hyper.0996ej61hmerf51ebdn2d16sqvxo"
+          },
+          {
+            "name": "Entities",
+            "table": "[Extract].[Entities]",
+            "connection": "hyper.0bgwipz1p2fcvp19nw00v15q7prc"
+          },
+          {
+            "name": "IssueTypes",
+            "table": "[Extract].[IssueTypes]",
+            "connection": "hyper.0slihbt0mewufg18at20h1ytc92f"
+          },
+          {
+            "name": "Trends",
+            "table": "[Extract].[Trends]",
+            "connection": "hyper.1scbg3p0qywm3m16mpi9b0kju7ca"
+          },
+          {
+            "name": "Entities",
+            "table": "[Extract].[Entities]",
+            "connection": "hyper.0bgwipz1p2fcvp19nw00v15q7prc"
+          },
+          {
+            "name": "IssueTypes",
+            "table": "[Extract].[IssueTypes]",
+            "connection": "hyper.0slihbt0mewufg18at20h1ytc92f"
+          },
+          {
+            "name": "Reports",
+            "table": "[Extract].[Reports]",
+            "connection": "hyper.0996ej61hmerf51ebdn2d16sqvxo"
+          },
+          {
+            "name": "Trends",
+            "table": "[Extract].[Trends]",
+            "connection": "hyper.1scbg3p0qywm3m16mpi9b0kju7ca"
+          }
+        ],
+        "columns": [
+          {
+            "internal": "[Calculation_0682326884511744]",
+            "caption": "Analyze Using Agentic AI",
+            "datatype": "string",
+            "role": "dimension",
+            "table": null,
+            "remote": null,
+            "is_calc": true,
+            "formula": "\"Analyze Using Agentic AI\""
+          },
+          {
+            "internal": "[Calculation_1002615208267776]",
+            "caption": "Grounding Token Count",
+            "datatype": "integer",
+            "role": "measure",
+            "table": null,
+            "remote": null,
+            "is_calc": true,
+            "formula": "// Approximate token count for [Grounding]\n// Heuristic: ~4 characters per token for English text across GPT/Claude/Cohere tokenizers.\n// Returns 0 when Grounding is null/empty, which trips the guard in the TabPy script.\nINT(LEN(IFNULL([Parameters].[Gen AI Prompt (copy)_2308939257662406656], \"\")) / 4)"
+          },
+          {
+            "internal": "[Calculation_2308939257662513153]",
+            "caption": "Generative AI Response",
+            "datatype": "string",
+            "role": "measure",
+            "table": null,
+            "remote": null,
+            "is_calc": true,
+            "formula": "<SCRIPT_ calc, 4021 chars>"
+          },
+          {
+            "internal": "[Calculation_3083839871128268802]",
+            "caption": "Payload",
+            "datatype": "string",
+            "role": "dimension",
+            "table": null,
+            "remote": null,
+            "is_calc": true,
+            "formula": "\" Start of Record \" +\n\" Report ID: \" + IFNULL([report_id], \"N/A\") +\n\" Report Content: \" + IFNULL([full_text], \"N/A\") +\n\" End of Record \""
+          },
+          {
+            "internal": "[__tableau_internal_object_id__].[Entities (Extract.Entities)_AFF14F83C6A64BE2A82BFB948B1A1DFE]",
+            "caption": "Entities",
+            "datatype": "table",
+            "role": "measure",
+            "table": null,
+            "remote": null,
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[__tableau_internal_object_id__].[IssueTypes (Extract.IssueTypes)_76AF1686D2884F41844029653D393A96]",
+            "caption": "IssueTypes",
+            "datatype": "table",
+            "role": "measure",
+            "table": null,
+            "remote": null,
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[__tableau_internal_object_id__].[Reports (Extract.Reports)_6573B3648FF24C45AC467FEE9797DC31]",
+            "caption": "Reports",
+            "datatype": "table",
+            "role": "measure",
+            "table": null,
+            "remote": null,
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[__tableau_internal_object_id__].[Trends (Extract.Trends)_3BEA9FF819B844A28D92D10B886394D1]",
+            "caption": "Trends",
+            "datatype": "table",
+            "role": "measure",
+            "table": null,
+            "remote": null,
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[canonical_entity (IssueTypes)]",
+            "caption": "canonical entity (IssueTypes)",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "IssueTypes",
+            "remote": "canonical_entity",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[canonical_entity]",
+            "caption": "Canonical Entity",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Entities",
+            "remote": "canonical_entity",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[category]",
+            "caption": "Category",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Entities",
+            "remote": "category",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[entity_text (IssueTypes)]",
+            "caption": "entity text (IssueTypes)",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "IssueTypes",
+            "remote": "entity_text",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[entity_text]",
+            "caption": "Entity Text",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Entities",
+            "remote": "entity_text",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[entity_type (IssueTypes)]",
+            "caption": "entity type (IssueTypes)",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "IssueTypes",
+            "remote": "entity_type",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[entity_type]",
+            "caption": "Entity Type",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Entities",
+            "remote": "entity_type",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[extractor]",
+            "caption": "Extractor",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Entities",
+            "remote": "extractor",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[file_name]",
+            "caption": "File Name",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Reports",
+            "remote": "file_name",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[full_text]",
+            "caption": "Full Text",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Reports",
+            "remote": "full_text",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[issue_directive_id (Trends)]",
+            "caption": "issue directive id (Trends)",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Trends",
+            "remote": "issue_directive_id",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[issue_directive_id]",
+            "caption": "Issue Directive Id",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "IssueTypes",
+            "remote": "issue_directive_id",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[issue_directive_title]",
+            "caption": "Issue Directive Title",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "IssueTypes",
+            "remote": "issue_directive_title",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[issue_type (Trends)]",
+            "caption": "issue type (Trends)",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Trends",
+            "remote": "issue_type",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[issue_type]",
+            "caption": "Issue Type",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "IssueTypes",
+            "remote": "issue_type",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[local_path]",
+            "caption": "Local Path",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Reports",
+            "remote": "local_path",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[mention_count (IssueTypes)]",
+            "caption": "mention count (IssueTypes)",
+            "datatype": "real",
+            "role": "measure",
+            "table": "IssueTypes",
+            "remote": "mention_count",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[mention_count]",
+            "caption": "Mention Count",
+            "datatype": "real",
+            "role": "measure",
+            "table": "Entities",
+            "remote": "mention_count",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[mentions]",
+            "caption": "Mentions",
+            "datatype": "integer",
+            "role": "measure",
+            "table": "Trends",
+            "remote": "mentions",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[n_reports]",
+            "caption": "N Reports",
+            "datatype": "integer",
+            "role": "measure",
+            "table": "Trends",
+            "remote": "n_reports",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[n_theme_rows]",
+            "caption": "N Theme Rows",
+            "datatype": "integer",
+            "role": "measure",
+            "table": "Trends",
+            "remote": "n_theme_rows",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[normalized_value (IssueTypes)]",
+            "caption": "normalized value (IssueTypes)",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "IssueTypes",
+            "remote": "normalized_value",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[normalized_value]",
+            "caption": "Normalized Value",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Entities",
+            "remote": "normalized_value",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[page_count]",
+            "caption": "Page Count",
+            "datatype": "integer",
+            "role": "measure",
+            "table": "Reports",
+            "remote": "page_count",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[report_id (Entities)]",
+            "caption": "report id (Entities)",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Entities",
+            "remote": "report_id",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[report_id (IssueTypes)]",
+            "caption": "report id (IssueTypes)",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "IssueTypes",
+            "remote": "report_id",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[report_id]",
+            "caption": "Report Id",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Reports",
+            "remote": "report_id",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[report_title (Entities)]",
+            "caption": "report title (Entities)",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Entities",
+            "remote": "report_title",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[report_title (IssueTypes)]",
+            "caption": "report title (IssueTypes)",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "IssueTypes",
+            "remote": "report_title",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[report_title]",
+            "caption": "Report Title",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Reports",
+            "remote": "report_title",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[retrieved_at]",
+            "caption": "Retrieved At",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Reports",
+            "remote": "retrieved_at",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[signal_level]",
+            "caption": "Signal Level",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "IssueTypes",
+            "remote": "signal_level",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[site (Trends)]",
+            "caption": "site (Trends)",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Trends",
+            "remote": "site",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[site]",
+            "caption": "Site",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Reports",
+            "remote": "site",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[size_bytes]",
+            "caption": "Size Bytes",
+            "datatype": "integer",
+            "role": "measure",
+            "table": "Reports",
+            "remote": "size_bytes",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[source_url (Entities)]",
+            "caption": "source url (Entities)",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Entities",
+            "remote": "source_url",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[source_url (IssueTypes)]",
+            "caption": "source url (IssueTypes)",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "IssueTypes",
+            "remote": "source_url",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[source_url]",
+            "caption": "Source Url",
+            "datatype": "string",
+            "role": "dimension",
+            "table": "Reports",
+            "remote": "source_url",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[week_ending_date (Entities)]",
+            "caption": "week ending date (Entities)",
+            "datatype": "date",
+            "role": "dimension",
+            "table": "Entities",
+            "remote": "week_ending_date",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[week_ending_date (IssueTypes)]",
+            "caption": "week ending date (IssueTypes)",
+            "datatype": "date",
+            "role": "dimension",
+            "table": "IssueTypes",
+            "remote": "week_ending_date",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[week_ending_date]",
+            "caption": "Week Ending Date",
+            "datatype": "date",
+            "role": "dimension",
+            "table": "Reports",
+            "remote": "week_ending_date",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[year (Trends)]",
+            "caption": "year (Trends)",
+            "datatype": "date",
+            "role": "dimension",
+            "table": "Trends",
+            "remote": "year",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[year]",
+            "caption": "Year",
+            "datatype": "integer",
+            "role": "dimension",
+            "table": "IssueTypes",
+            "remote": "year",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[site (Entities)]",
+            "caption": "site (Entities)",
+            "datatype": null,
+            "role": null,
+            "table": "Entities",
+            "remote": "site",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[site (IssueTypes)]",
+            "caption": "site (IssueTypes)",
+            "datatype": null,
+            "role": null,
+            "table": "IssueTypes",
+            "remote": "site",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[extractor (IssueTypes)]",
+            "caption": "extractor (IssueTypes)",
+            "datatype": null,
+            "role": null,
+            "table": "IssueTypes",
+            "remote": "extractor",
+            "is_calc": false,
+            "formula": null
+          },
+          {
+            "internal": "[category (IssueTypes)]",
+            "caption": "category (IssueTypes)",
+            "datatype": null,
+            "role": null,
+            "table": "IssueTypes",
+            "remote": "category",
+            "is_calc": false,
+            "formula": null
+          }
+        ]
+      }
+    ],
+    "parameters": [
+      {
+        "internal": "[Gen AI Prompt (copy)_2308939257662406656]",
+        "caption": "Grounding",
+        "datatype": "string",
+        "domain": "any",
+        "value_preview": "\" Start of Record  Report ID: 0a1ec16df25c Report Content: DEFENSE NUCLEAR FACIL...",
+        "value_chars": 62777,
+        "members": [],
+        "member_aliases": [],
+        "has_formula": true
+      },
+      {
+        "internal": "[Parameter 1 2]",
+        "caption": "Prompt",
+        "datatype": "string",
+        "domain": "any",
+        "value_preview": "\"Capture thematics and issues from these reports.\"",
+        "value_chars": 50,
+        "members": [],
+        "member_aliases": [],
+        "has_formula": true
+      },
+      {
+        "internal": "[Parameter 6 1]",
+        "caption": "Select LLM",
+        "datatype": "string",
+        "domain": "list",
+        "value_preview": "\"claude-sonnet-4-20250514\"",
+        "value_chars": 26,
+        "members": [
+          "\"claude-sonnet-4-20250514\"",
+          "\"claude-opus-4-6-v1\"",
+          "\"gemini-2.5-pro\"",
+          "\"gpt-5\""
+        ],
+        "member_aliases": [
+          "Sonnet",
+          "Opus",
+          null,
+          null
+        ],
+        "has_formula": true
+      }
+    ],
+    "worksheets": [
+      {
+        "name": "AI Response",
+        "fields": [
+          "Canonical Entity",
+          "Category",
+          "Full Text",
+          "Generative AI Response",
+          "Grounding",
+          "Grounding Token Count",
+          "Issue Directive Id",
+          "Issue Directive Title",
+          "Issue Type",
+          "Prompt",
+          "Report Title",
+          "Select LLM",
+          "Site",
+          "Source Url",
+          "Week Ending Date"
+        ]
+      },
+      {
+        "name": "Agentic AI Button",
+        "fields": [
+          "\"\"",
+          "Analyze Using Agentic AI",
+          "Canonical Entity",
+          "Category",
+          "Full Text",
+          "Issue Directive Id",
+          "Issue Directive Title",
+          "Payload",
+          "Report Id",
+          "Report Title",
+          "Site",
+          "Source Url",
+          "Week Ending Date"
+        ]
+      },
+      {
+        "name": "Big Number",
+        "fields": [
+          "Canonical Entity",
+          "Category",
+          "Full Text",
+          "Issue Directive Id",
+          "Issue Directive Title",
+          "Report Title",
+          "Reports",
+          "Site",
+          "Source Url",
+          "Week Ending Date"
+        ]
+      },
+      {
+        "name": "Extracted Entities",
+        "fields": [
+          "Category",
+          "Full Text",
+          "Issue Directive Id",
+          "Issue Directive Title",
+          "Issue Type",
+          "Mention Count",
+          "Report Title",
+          "Site",
+          "Source Url",
+          "Week Ending Date",
+          "[site (Trends)]",
+          "[year (Trends)]",
+          "canonical entity (IssueTypes)"
+        ]
+      },
+      {
+        "name": "Issue",
+        "fields": [
+          "Canonical Entity",
+          "Category",
+          "Full Text",
+          "Issue Directive Id",
+          "Issue Directive Title",
+          "Report Title",
+          "Site",
+          "Source Url",
+          "Week Ending Date",
+          "[site (Trends)]",
+          "[year (Trends)]",
+          "mention count (IssueTypes)"
+        ]
+      },
+      {
+        "name": "Report Date",
+        "fields": [
+          "Canonical Entity",
+          "Category",
+          "Full Text",
+          "Issue Directive Id",
+          "Issue Directive Title",
+          "Issue Type",
+          "Report Title",
+          "Reports",
+          "Site",
+          "Source Url",
+          "Week Ending Date",
+          "[site (Trends)]",
+          "[year (Trends)]",
+          "canonical entity (IssueTypes)"
+        ]
+      },
+      {
+        "name": "Report Date (2)",
+        "fields": [
+          "Canonical Entity",
+          "Category",
+          "Full Text",
+          "Issue Directive Id",
+          "Issue Directive Title",
+          "Issue Type",
+          "Report Title",
+          "Reports",
+          "Site",
+          "Source Url",
+          "Week Ending Date",
+          "[site (Trends)]",
+          "[year (Trends)]",
+          "canonical entity (IssueTypes)"
+        ]
+      },
+      {
+        "name": "Report by Site",
+        "fields": [
+          "Canonical Entity",
+          "Category",
+          "Full Text",
+          "Issue Directive Id",
+          "Issue Directive Title",
+          "Issue Type",
+          "Report Title",
+          "Reports",
+          "Site",
+          "Source Url",
+          "Week Ending Date",
+          "[site (Trends)]",
+          "[year (Trends)]",
+          "canonical entity (IssueTypes)"
+        ]
+      },
+      {
+        "name": "Reports",
+        "fields": [
+          "Canonical Entity",
+          "Category",
+          "Full Text",
+          "Issue Directive Id",
+          "Issue Directive Title",
+          "Issue Type",
+          "Report Title",
+          "Site",
+          "Source Url",
+          "Week Ending Date",
+          "[site (Trends)]",
+          "[year (Trends)]",
+          "canonical entity (IssueTypes)",
+          "mention count (IssueTypes)"
+        ]
+      },
+      {
+        "name": "Trends Over Time",
+        "fields": [
+          "Category",
+          "Issue Directive Id",
+          "Issue Directive Title",
+          "Issue Type",
+          "N Reports",
+          "Site",
+          "Week Ending Date",
+          "[site (Trends)]",
+          "[year (Trends)]",
+          "canonical entity (IssueTypes)"
+        ]
+      }
+    ],
+    "dashboards": [
+      {
+        "name": "Report Analysis",
+        "sheets": [
+          "AI Response",
+          "Agentic AI Button",
+          "Big Number",
+          "Extracted Entities",
+          "Issue",
+          "Report Date",
+          "Report by Site",
+          "Reports"
+        ],
+        "parameter_controls": [
+          "[Parameters].[Parameter 1 2]",
+          "[Parameters].[Parameter 6 1]"
+        ]
+      }
+    ],
+    "parameter_actions": [
+      {
+        "caption": "Dynamic Grounding",
+        "source_field": "[federated.03lxilz0vx55r91dkm5vk1yd1r0l].[none:Calculation_3083839871128268802:nk]",
+        "target_parameter": "[Parameters].[Gen AI Prompt (copy)_2308939257662406656]",
+        "aggregation": "concatenate",
+        "source_dashboard": "Report Analysis"
+      }
+    ],
+    "filter_actions": 6
+  },
+  "scaffold": {
+    "response_calc": {
+      "caption": "Generative AI Response",
+      "internal": "[Calculation_2308939257662513153]",
+      "datasource": "federated.03lxilz0vx55r91dkm5vk1yd1r0l",
+      "api_url": "https://llm-gateway.example.com/chat/completions",
+      "tls_verify_disabled": true,
+      "formula_chars": 4021
+    },
+    "payload_calc": {
+      "caption": "Payload",
+      "internal": "[Calculation_3083839871128268802]",
+      "formula": "\" Start of Record \" +\n\" Report ID: \" + IFNULL([report_id], \"N/A\") +\n\" Report Content: \" + IFNULL([full_text], \"N/A\") +\n\" End of Record \"",
+      "datasource": "federated.03lxilz0vx55r91dkm5vk1yd1r0l"
+    },
+    "grounding_param": "Grounding",
+    "token_count_calc": {
+      "caption": "Grounding Token Count",
+      "internal": "[Calculation_1002615208267776]"
+    },
+    "prompt_param": "Prompt",
+    "model_param": "Select LLM",
+    "prompts_param": null,
+    "button_calc": {
+      "caption": "Analyze Using Agentic AI",
+      "internal": "[Calculation_0682326884511744]"
+    },
+    "risks": [
+      "PLAINTEXT_API_KEY: 'Generative AI Response' embeds a live API key. Anyone with the workbook can read it. Rotate the key and switch to keystore mode.",
+      "GROUNDING_SAVED_VALUE: the 'Grounding' parameter was saved holding 62777 chars of record text (data at rest in the workbook, bigger file). The patcher resets it to empty.",
+      "TLS_VERIFY_DISABLED: the current calc calls the LLM with verify=False."
+    ],
+    "complete": true
+  },
+  "tables": [
+    {
+      "source": "~/dnfsb_flow/outputs/DNFSB Reports 2020-2024.hyper",
+      "table": "\"Extract\".\"Reports\"",
+      "table_name": "Reports",
+      "rows": 1298,
+      "profiled_rows": 1298,
+      "columns": [
+        {
+          "name": "report_id",
+          "type": "text",
+          "non_null": 1298,
+          "distinct": 1298,
+          "nulls": 0,
+          "avg_len": 12.0,
+          "max_len": 12,
+          "empty": 0,
+          "samples": [
+            "003b243aa88b",
+            "0051f9864e12",
+            "0081d772344e",
+            "0100bedd83c4",
+            "011598970937"
+          ],
+          "role": "id",
+          "caption": "Report Id"
+        },
+        {
+          "name": "report_title",
+          "type": "text",
+          "non_null": 1298,
+          "distinct": 1298,
+          "nulls": 0,
+          "avg_len": 40.3,
+          "max_len": 58,
+          "empty": 0,
+          "samples": [
+            "Hanford - Week Ending July 19 2024.pdf",
+            "Hanford Week Ending April 1 2022.pdf",
+            "Hanford Week Ending April 10 2020.pdf",
+            "Hanford Week Ending April 12 2024.pdf",
+            "Hanford Week Ending April 14 2023.pdf"
+          ],
+          "role": "title",
+          "caption": "Report Title"
+        },
+        {
+          "name": "site",
+          "type": "text",
+          "non_null": 1298,
+          "distinct": 5,
+          "nulls": 0,
+          "avg_len": 9.2,
+          "max_len": 14,
+          "empty": 0,
+          "samples": [
+            "Hanford",
+            "Oak Ridge",
+            "Pantex",
+            "Savannah River",
+            "Los Alamos"
+          ],
+          "role": "category",
+          "caption": "Site"
+        },
+        {
+          "name": "week_ending_date",
+          "type": "date",
+          "non_null": 1298,
+          "distinct": 261,
+          "nulls": 0,
+          "min": "2020-01-03",
+          "max": "2024-12-27",
+          "samples": [
+            "2023-02-24",
+            "2022-01-21",
+            "2022-11-04",
+            "2020-10-02",
+            "2021-07-30"
+          ],
+          "role": "date",
+          "caption": "Week Ending Date"
+        },
+        {
+          "name": "source_url",
+          "type": "text",
+          "non_null": 1298,
+          "distinct": 1298,
+          "nulls": 0,
+          "avg_len": 108.6,
+          "max_len": 133,
+          "empty": 0,
+          "samples": [
+            "https://www.dnfsb.gov/sites/default/files/2024-12/Hanford%20Week%20Ending%20Nove",
+            "https://www.dnfsb.gov/sites/default/files/2024-12/Hanford%20Week%20Ending%20Nove",
+            "https://www.dnfsb.gov/sites/default/files/2024-12/Los%20Alamos%20Week%20Ending%2",
+            "https://www.dnfsb.gov/sites/default/files/2024-12/Los%20Alamos%20Week%20Ending%2",
+            "https://www.dnfsb.gov/sites/default/files/2024-12/Oak%20Ridge%20Week%20Ending%20"
+          ],
+          "role": "url",
+          "caption": "Source Url"
+        },
+        {
+          "name": "file_name",
+          "type": "text",
+          "non_null": 1298,
+          "distinct": 1,
+          "nulls": 0,
+          "avg_len": 0.0,
+          "max_len": 0,
+          "empty": 1298,
+          "samples": [],
+          "role": "constant",
+          "caption": "File Name"
+        },
+        {
+          "name": "local_path",
+          "type": "text",
+          "non_null": 1298,
+          "distinct": 1298,
+          "nulls": 0,
+          "avg_len": 110.2,
+          "max_len": 127,
+          "empty": 0,
+          "samples": [
+            "~/dnfsb_flow/outputs/pdfs_2020_2024/Hanford_-_",
+            "~/dnfsb_flow/outputs/pdfs_2020_2024/Hanford_We",
+            "~/dnfsb_flow/outputs/pdfs_2020_2024/Hanford_We",
+            "~/dnfsb_flow/outputs/pdfs_2020_2024/Hanford_We",
+            "~/dnfsb_flow/outputs/pdfs_2020_2024/Hanford_We"
+          ],
+          "role": "url",
+          "caption": "Local Path"
+        },
+        {
+          "name": "page_count",
+          "type": "big_int",
+          "non_null": 1298,
+          "distinct": 2,
+          "nulls": 0,
+          "min": "1",
+          "max": "2",
+          "samples": [
+            "1",
+            "2"
+          ],
+          "role": "measure",
+          "caption": "Page Count"
+        },
+        {
+          "name": "size_bytes",
+          "type": "big_int",
+          "non_null": 0,
+          "distinct": 0,
+          "nulls": 1298,
+          "min": "None",
+          "max": "None",
+          "samples": [],
+          "role": "constant",
+          "caption": "Size Bytes"
+        },
+        {
+          "name": "retrieved_at",
+          "type": "text",
+          "non_null": 1298,
+          "distinct": 1,
+          "nulls": 0,
+          "avg_len": 0.0,
+          "max_len": 0,
+          "empty": 1298,
+          "samples": [],
+          "role": "constant",
+          "caption": "Retrieved At"
+        },
+        {
+          "name": "full_text",
+          "type": "text",
+          "non_null": 1298,
+          "distinct": 1297,
+          "nulls": 0,
+          "avg_len": 3423.5,
+          "max_len": 4314,
+          "empty": 2,
+          "samples": [
+            "August 23, 2024\nDEFENSE NUCLEAR FACILITIES SAFETY BOARD\nTO: Timothy J. Dwyer, Technical Director\nFROM: E. Freeman and D. Gutowski, Resident Inspectors\nSUBJECT: Los Alamos Activity Report for the Week Ending August 23, 2024\nStaff Activity: O"
+          ],
+          "role": "long_text",
+          "caption": "Full Text"
+        }
+      ]
+    },
+    {
+      "source": "~/dnfsb_flow/outputs/DNFSB Report Entities (LLM) 2020-2024.hyper",
+      "table": "\"Extract\".\"Entities\"",
+      "table_name": "Entities",
+      "rows": 40318,
+      "profiled_rows": 40318,
+      "columns": [
+        {
+          "name": "report_id",
+          "type": "text",
+          "non_null": 40318,
+          "distinct": 1296,
+          "nulls": 0,
+          "avg_len": 12.0,
+          "max_len": 12,
+          "empty": 0,
+          "samples": [
+            "4237c2ba1fe9",
+            "44db7cb1d922",
+            "5176f62ce2f5",
+            "c9c252f9e66f",
+            "fbd802168f29"
+          ],
+          "role": "category",
+          "caption": "report id (Entities)"
+        },
+        {
+          "name": "source_url",
+          "type": "text",
+          "non_null": 40318,
+          "distinct": 1296,
+          "nulls": 0,
+          "avg_len": 108.7,
+          "max_len": 133,
+          "empty": 0,
+          "samples": [
+            "https://www.dnfsb.gov/sites/default/files/document/22451/Savannah%20River%20Week",
+            "https://www.dnfsb.gov/sites/default/files/document/24281/Hanford%20Week%20Ending",
+            "https://www.dnfsb.gov/sites/default/files/document/25741/Pantex%20Week%20Ending%",
+            "https://www.dnfsb.gov/sites/default/files/document/28711/Oak%20Ridge%20Week%20En",
+            "https://www.dnfsb.gov/sites/default/files/document/20141/Savannah%20River%20Week"
+          ],
+          "role": "url",
+          "caption": "source url (Entities)"
+        },
+        {
+          "name": "report_title",
+          "type": "text",
+          "non_null": 40318,
+          "distinct": 1296,
+          "nulls": 0,
+          "avg_len": 40.4,
+          "max_len": 58,
+          "empty": 0,
+          "samples": [
+            "Hanford Week Ending May 15 2020.pdf",
+            "Savannah River Week Ending March 19 2021.pdf",
+            "Hanford Week Ending August 30 2024.pdf",
+            "Los Alamos Week Ending November 26 2021.pdf",
+            "Pantex Week Ending December 10 2021.pdf"
+          ],
+          "role": "category",
+          "caption": "report title (Entities)"
+        },
+        {
+          "name": "site",
+          "type": "text",
+          "non_null": 40318,
+          "distinct": 5,
+          "nulls": 0,
+          "avg_len": 9.2,
+          "max_len": 14,
+          "empty": 0,
+          "samples": [
+            "Hanford",
+            "Oak Ridge",
+            "Pantex",
+            "Savannah River",
+            "Los Alamos"
+          ],
+          "role": "category",
+          "caption": "site (Entities)"
+        },
+        {
+          "name": "week_ending_date",
+          "type": "date",
+          "non_null": 40318,
+          "distinct": 261,
+          "nulls": 0,
+          "min": "2020-01-03",
+          "max": "2024-12-27",
+          "samples": [
+            "2023-02-24",
+            "2022-01-21",
+            "2022-11-04",
+            "2020-10-02",
+            "2021-07-30"
+          ],
+          "role": "date",
+          "caption": "week ending date (Entities)"
+        },
+        {
+          "name": "extractor",
+          "type": "text",
+          "non_null": 40318,
+          "distinct": 1,
+          "nulls": 0,
+          "avg_len": 3.0,
+          "max_len": 3,
+          "empty": 0,
+          "samples": [
+            "LLM"
+          ],
+          "role": "constant",
+          "caption": "Extractor"
+        },
+        {
+          "name": "category",
+          "type": "text",
+          "non_null": 40318,
+          "distinct": 11,
+          "nulls": 0,
+          "avg_len": 6.5,
+          "max_len": 14,
+          "empty": 0,
+          "samples": [
+            "Organization",
+            "Facility",
+            "Person",
+            "Product",
+            "Location"
+          ],
+          "role": "category",
+          "caption": "Category"
+        },
+        {
+          "name": "entity_type",
+          "type": "text",
+          "non_null": 40318,
+          "distinct": 13,
+          "nulls": 0,
+          "avg_len": 4.6,
+          "max_len": 9,
+          "empty": 0,
+          "samples": [
+            "PRODUCT",
+            "GROUP",
+            "PERSON",
+            "LAW",
+            "GPE"
+          ],
+          "role": "category",
+          "caption": "Entity Type"
+        },
+        {
+          "name": "entity_text",
+          "type": "text",
+          "non_null": 40318,
+          "distinct": 15886,
+          "nulls": 0,
+          "avg_len": 25.0,
+          "max_len": 120,
+          "empty": 0,
+          "samples": [
+            "231-Z facility",
+            "pyrophoric reaction at the Chemistry and Metallurgy Research building",
+            "ETC-Is",
+            "CNS personnel identified that the associated thermostat was faulty",
+            "ESD flooring"
+          ],
+          "role": "text",
+          "caption": "Entity Text"
+        },
+        {
+          "name": "canonical_entity",
+          "type": "text",
+          "non_null": 40318,
+          "distinct": 14483,
+          "nulls": 0,
+          "avg_len": 30.4,
+          "max_len": 166,
+          "empty": 0,
+          "samples": [
+            "Hazard Review Board Q&A \u2014 REDOX fissile material sampling work package",
+            "approximately 60 gloveboxes",
+            "Standard Waste Boxes",
+            "90% complete",
+            "Facility Self-Assessment"
+          ],
+          "role": "text",
+          "caption": "Canonical Entity"
+        },
+        {
+          "name": "normalized_value",
+          "type": "text",
+          "non_null": 40318,
+          "distinct": 1003,
+          "nulls": 0,
+          "avg_len": 1.1,
+          "max_len": 10,
+          "empty": 35735,
+          "samples": [
+            "1972-01-01",
+            "1995-01-01",
+            "2005-07-08",
+            "2009-03-20",
+            "2011-04-22"
+          ],
+          "role": "category",
+          "caption": "Normalized Value"
+        },
+        {
+          "name": "mention_count",
+          "type": "double",
+          "non_null": 40318,
+          "distinct": 18,
+          "nulls": 0,
+          "min": "1.0",
+          "max": "18.0",
+          "samples": [
+            "4.0",
+            "11.0",
+            "16.0",
+            "9.0",
+            "7.0"
+          ],
+          "role": "measure",
+          "caption": "Mention Count"
+        }
+      ]
+    },
+    {
+      "source": "~/dnfsb_flow/outputs/DNFSB Issue Types 2020-2024.hyper",
+      "table": "\"Extract\".\"IssueTypes\"",
+      "table_name": "IssueTypes",
+      "rows": 5981,
+      "profiled_rows": 5981,
+      "columns": [
+        {
+          "name": "report_id",
+          "type": "text",
+          "non_null": 5981,
+          "distinct": 1280,
+          "nulls": 0,
+          "avg_len": 12.0,
+          "max_len": 12,
+          "empty": 0,
+          "samples": [
+            "003b243aa88b",
+            "0081d772344e",
+            "0100bedd83c4",
+            "011598970937",
+            "016b1d4a4a22"
+          ],
+          "role": "text",
+          "caption": "report id (IssueTypes)"
+        },
+        {
+          "name": "source_url",
+          "type": "text",
+          "non_null": 5981,
+          "distinct": 1280,
+          "nulls": 0,
+          "avg_len": 108.6,
+          "max_len": 133,
+          "empty": 0,
+          "samples": [
+            "https://www.dnfsb.gov/sites/default/files/2024-12/Hanford%20Week%20Ending%20Nove",
+            "https://www.dnfsb.gov/sites/default/files/2024-12/Hanford%20Week%20Ending%20Nove",
+            "https://www.dnfsb.gov/sites/default/files/2024-12/Los%20Alamos%20Week%20Ending%2",
+            "https://www.dnfsb.gov/sites/default/files/2024-12/Los%20Alamos%20Week%20Ending%2",
+            "https://www.dnfsb.gov/sites/default/files/2024-12/Oak%20Ridge%20Week%20Ending%20"
+          ],
+          "role": "url",
+          "caption": "source url (IssueTypes)"
+        },
+        {
+          "name": "report_title",
+          "type": "text",
+          "non_null": 5981,
+          "distinct": 1280,
+          "nulls": 0,
+          "avg_len": 40.3,
+          "max_len": 58,
+          "empty": 0,
+          "samples": [
+            "Hanford - Week Ending July 19 2024.pdf",
+            "Hanford Week Ending April 1 2022.pdf",
+            "Hanford Week Ending April 10 2020.pdf",
+            "Hanford Week Ending April 12 2024.pdf",
+            "Hanford Week Ending April 14 2023.pdf"
+          ],
+          "role": "text",
+          "caption": "report title (IssueTypes)"
+        },
+        {
+          "name": "site",
+          "type": "text",
+          "non_null": 5981,
+          "distinct": 5,
+          "nulls": 0,
+          "avg_len": 9.2,
+          "max_len": 14,
+          "empty": 0,
+          "samples": [
+            "Hanford",
+            "Oak Ridge",
+            "Pantex",
+            "Savannah River",
+            "Los Alamos"
+          ],
+          "role": "category",
+          "caption": "site (IssueTypes)"
+        },
+        {
+          "name": "week_ending_date",
+          "type": "date",
+          "non_null": 5981,
+          "distinct": 261,
+          "nulls": 0,
+          "min": "2020-01-03",
+          "max": "2024-12-27",
+          "samples": [
+            "2023-02-24",
+            "2022-01-21",
+            "2022-11-04",
+            "2020-10-02",
+            "2021-07-30"
+          ],
+          "role": "date",
+          "caption": "week ending date (IssueTypes)"
+        },
+        {
+          "name": "extractor",
+          "type": "text",
+          "non_null": 5981,
+          "distinct": 1,
+          "nulls": 0,
+          "avg_len": 3.0,
+          "max_len": 3,
+          "empty": 0,
+          "samples": [
+            "LLM"
+          ],
+          "role": "constant",
+          "caption": "extractor (IssueTypes)"
+        },
+        {
+          "name": "category",
+          "type": "text",
+          "non_null": 5981,
+          "distinct": 1,
+          "nulls": 0,
+          "avg_len": 5.0,
+          "max_len": 5,
+          "empty": 0,
+          "samples": [
+            "Theme"
+          ],
+          "role": "constant",
+          "caption": "category (IssueTypes)"
+        },
+        {
+          "name": "entity_type",
+          "type": "text",
+          "non_null": 5981,
+          "distinct": 1,
+          "nulls": 0,
+          "avg_len": 5.0,
+          "max_len": 5,
+          "empty": 0,
+          "samples": [
+            "THEME"
+          ],
+          "role": "constant",
+          "caption": "entity type (IssueTypes)"
+        },
+        {
+          "name": "entity_text",
+          "type": "text",
+          "non_null": 5981,
+          "distinct": 2602,
+          "nulls": 0,
+          "avg_len": 27.3,
+          "max_len": 118,
+          "empty": 0,
+          "samples": [
+            "Electrostatic Discharge hazard evaluation",
+            "flammability concern \u2014 volatile organic compounds in glovebox",
+            "pre-job briefing inadequacy",
+            "fire protection upgrades",
+            "procedure use and compliance"
+          ],
+          "role": "text",
+          "caption": "entity text (IssueTypes)"
+        },
+        {
+          "name": "canonical_entity",
+          "type": "text",
+          "non_null": 5981,
+          "distinct": 1098,
+          "nulls": 0,
+          "avg_len": 22.0,
+          "max_len": 120,
+          "empty": 0,
+          "samples": [
+            "Chemical Hazards \u2014 Spontaneous Exothermic Reactions",
+            "Maintenance and Corrective Action",
+            "Industrial Hygiene / Chemical Hazard Control",
+            "Nuclear Safety Consequence Evaluation",
+            "Facility Hazard Categorization"
+          ],
+          "role": "text",
+          "caption": "canonical entity (IssueTypes)"
+        },
+        {
+          "name": "normalized_value",
+          "type": "text",
+          "non_null": 5981,
+          "distinct": 1,
+          "nulls": 0,
+          "avg_len": 0.0,
+          "max_len": 0,
+          "empty": 5981,
+          "samples": [],
+          "role": "constant",
+          "caption": "normalized value (IssueTypes)"
+        },
+        {
+          "name": "mention_count",
+          "type": "double",
+          "non_null": 5981,
+          "distinct": 9,
+          "nulls": 0,
+          "min": "1.0",
+          "max": "10.0",
+          "samples": [
+            "4.0",
+            "7.0",
+            "10.0",
+            "1.0",
+            "6.0"
+          ],
+          "role": "measure",
+          "caption": "mention count (IssueTypes)"
+        },
+        {
+          "name": "issue_type",
+          "type": "text",
+          "non_null": 5981,
+          "distinct": 28,
+          "nulls": 0,
+          "avg_len": 21.2,
+          "max_len": 44,
+          "empty": 0,
+          "samples": [
+            "Emergency Management",
+            "Confinement & Ventilation",
+            "Operational Readiness",
+            "Waste Management",
+            "Nuclear Explosive Safety"
+          ],
+          "role": "category",
+          "caption": "Issue Type"
+        },
+        {
+          "name": "issue_directive_id",
+          "type": "text",
+          "non_null": 5981,
+          "distinct": 20,
+          "nulls": 0,
+          "avg_len": 14.4,
+          "max_len": 24,
+          "empty": 165,
+          "samples": [
+            "DOE O 474.2",
+            "DOE O 430.1C",
+            "DOE-STD-1212",
+            "DOE O 452.2E",
+            "10 CFR 835"
+          ],
+          "role": "category",
+          "caption": "Issue Directive Id"
+        },
+        {
+          "name": "issue_directive_title",
+          "type": "text",
+          "non_null": 5981,
+          "distinct": 28,
+          "nulls": 0,
+          "avg_len": 43.6,
+          "max_len": 81,
+          "empty": 0,
+          "samples": [
+            "Facility Safety \u2014 Deflagration / Combustible Gas Controls",
+            "Radioactive Waste Management",
+            "Maintenance Management Program for DOE Nuclear Facilities",
+            "Facility Safety \u2014 Natural Phenomena Hazards (DOE-STD-1020)",
+            "Verification of Readiness to Start Up or Restart Nuclear Facilities"
+          ],
+          "role": "category",
+          "caption": "Issue Directive Title"
+        },
+        {
+          "name": "signal_level",
+          "type": "text",
+          "non_null": 5981,
+          "distinct": 1,
+          "nulls": 0,
+          "avg_len": 8.0,
+          "max_len": 8,
+          "empty": 0,
+          "samples": [
+            "category"
+          ],
+          "role": "constant",
+          "caption": "Signal Level"
+        },
+        {
+          "name": "year",
+          "type": "big_int",
+          "non_null": 5981,
+          "distinct": 5,
+          "nulls": 0,
+          "min": "2020",
+          "max": "2024",
+          "samples": [
+            "2024",
+            "2023",
+            "2020",
+            "2021",
+            "2022"
+          ],
+          "role": "measure",
+          "caption": "Year"
+        }
+      ]
+    },
+    {
+      "source": "~/dnfsb_flow/outputs/DNFSB Issue Type Trends 2020-2024.hyper",
+      "table": "\"Extract\".\"Trends\"",
+      "table_name": "Trends",
+      "rows": 694,
+      "profiled_rows": 694,
+      "columns": [
+        {
+          "name": "site",
+          "type": "text",
+          "non_null": 694,
+          "distinct": 6,
+          "nulls": 0,
+          "avg_len": 9.6,
+          "max_len": 14,
+          "empty": 0,
+          "samples": [
+            "Hanford",
+            "Oak Ridge",
+            "Pantex",
+            "(All sites)",
+            "Savannah River"
+          ],
+          "role": "category",
+          "caption": "site (Trends)"
+        },
+        {
+          "name": "issue_type",
+          "type": "text",
+          "non_null": 694,
+          "distinct": 28,
+          "nulls": 0,
+          "avg_len": 24.8,
+          "max_len": 44,
+          "empty": 0,
+          "samples": [
+            "Emergency Management",
+            "Confinement & Ventilation",
+            "Operational Readiness",
+            "Waste Management",
+            "Nuclear Explosive Safety"
+          ],
+          "role": "category",
+          "caption": "issue type (Trends)"
+        },
+        {
+          "name": "issue_directive_id",
+          "type": "text",
+          "non_null": 664,
+          "distinct": 19,
+          "nulls": 30,
+          "avg_len": 15.0,
+          "max_len": 24,
+          "empty": 0,
+          "samples": [
+            "DOE O 433.1B",
+            "DOE O 422.1 / 10 CFR 851",
+            "DOE O 151.1E",
+            "DOE O 426.2",
+            "DOE O 425.1D"
+          ],
+          "role": "category",
+          "caption": "issue directive id (Trends)"
+        },
+        {
+          "name": "year",
+          "type": "big_int",
+          "non_null": 694,
+          "distinct": 5,
+          "nulls": 0,
+          "min": "2020",
+          "max": "2024",
+          "samples": [
+            "2024",
+            "2023",
+            "2020",
+            "2021",
+            "2022"
+          ],
+          "role": "measure",
+          "caption": "year (Trends)"
+        },
+        {
+          "name": "n_reports",
+          "type": "big_int",
+          "non_null": 694,
+          "distinct": 77,
+          "nulls": 0,
+          "min": "1",
+          "max": "188",
+          "samples": [
+            "5",
+            "163",
+            "168",
+            "3",
+            "1"
+          ],
+          "role": "measure",
+          "caption": "N Reports"
+        },
+        {
+          "name": "n_theme_rows",
+          "type": "big_int",
+          "non_null": 694,
+          "distinct": 88,
+          "nulls": 0,
+          "min": "1",
+          "max": "210",
+          "samples": [
+            "5",
+            "69",
+            "58",
+            "3",
+            "171"
+          ],
+          "role": "measure",
+          "caption": "N Theme Rows"
+        },
+        {
+          "name": "mentions",
+          "type": "big_int",
+          "non_null": 694,
+          "distinct": 123,
+          "nulls": 0,
+          "min": "1",
+          "max": "484",
+          "samples": [
+            "69",
+            "5",
+            "107",
+            "3",
+            "1"
+          ],
+          "role": "measure",
+          "caption": "Mentions"
+        }
+      ]
+    }
+  ],
+  "payload_recommendations": [
+    {
+      "table": "Reports",
+      "fields": [
+        {
+          "label": "Report ID",
+          "field": "Report Id",
+          "column": "report_id",
+          "role": "id",
+          "type": "string"
+        },
+        {
+          "label": "Week Ending Date",
+          "field": "Week Ending Date",
+          "column": "week_ending_date",
+          "role": "date",
+          "type": "date"
+        },
+        {
+          "label": "Site",
+          "field": "Site",
+          "column": "site",
+          "role": "category",
+          "type": "string"
+        },
+        {
+          "label": "Report Title",
+          "field": "Report Title",
+          "column": "report_title",
+          "role": "title",
+          "type": "string"
+        },
+        {
+          "label": "Full Content",
+          "field": "Full Text",
+          "column": "full_text",
+          "role": "long_text",
+          "type": "string"
+        }
+      ],
+      "est_tokens_per_record": 900,
+      "records_fit_budget": 100,
+      "budget_tokens": 90000,
+      "total_records": 1298,
+      "est_tokens_all_records": 1168200
+    }
+  ],
+  "notes": []
+}

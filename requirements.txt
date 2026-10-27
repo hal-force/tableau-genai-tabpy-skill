@@ -1,0 +1,14 @@
+# Authoring-side scripts (run on the author's machine)
+requests>=2.28
+certifi>=2023.7          # ca_bundle.py
+tableauhyperapi>=0.0.17000   # profile_data.py / tests reading .hyper, .tdsx, .twbx extracts
+tableauserverclient>=0.30    # server_io.py (Server / Cloud)
+
+# Optional
+# keyring>=24            # OS keystore on Windows / Linux (macOS uses the Keychain CLI)
+
+# TabPy host (install into the Python that runs TabPy, not necessarily here)
+#   requests             required by every generated calc
+#   boto3                provider bedrock-iam
+#   google-auth          provider vertex-sa (or have gcloud on PATH)
+#   keyring              keystore lookups on non-macOS hosts

@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Secrets -- never commit
+.env
+.env.*
+secrets.json
+*.pem
+*.key
+
+# Tableau artifacts (may contain data or credentials)
+*.twb
+*.twbx
+*.tds
+*.tdsx
+*.hyper
+*.tfl
+*.tflx
+
+# Per-run output
+out/
+/tmp/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
